@@ -942,6 +942,30 @@ select.portal-input option{background:#fff;}
     <!-- ADMIN -->
     <div id="tab-admin" style="display:none">
 
+      <!-- ADMIN PIN SETTINGS -->
+      <div class="admin-card" style="border-left:3px solid var(--navy-mid);">
+        <div class="admin-title">Admin PIN</div>
+        <div class="admin-sub">Change the PIN required to access this admin panel. Default is <code style="font-family:'DM Mono',monospace;background:var(--page);padding:1px 6px;border-radius:4px;">2026</code></div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+          <div class="field-group" style="flex:1;min-width:160px;max-width:200px;">
+            <div class="field-label">New PIN</div>
+            <input class="portal-input" type="password" id="new-admin-pin"
+                   placeholder="Enter new PIN…" maxlength="12"
+                   style="font-family:'DM Mono',monospace;letter-spacing:3px;"
+                   onkeydown="if(event.key==='Enter')changeAdminPin()">
+          </div>
+          <div class="field-group" style="flex:1;min-width:160px;max-width:200px;">
+            <div class="field-label">Confirm PIN</div>
+            <input class="portal-input" type="password" id="confirm-admin-pin"
+                   placeholder="Confirm new PIN…" maxlength="12"
+                   style="font-family:'DM Mono',monospace;letter-spacing:3px;"
+                   onkeydown="if(event.key==='Enter')changeAdminPin()">
+          </div>
+          <button class="btn-primary" onclick="changeAdminPin()" style="margin-bottom:1px;">Change PIN</button>
+          <span id="admin-pin-status" style="font-size:11px;color:var(--t3);align-self:center;"></span>
+        </div>
+      </div>
+
       <!-- PHASE CONTROLS -->
       <div class="admin-card" style="border-left:3px solid var(--teal);">
         <div class="admin-title">Phase controls</div>
@@ -1019,37 +1043,262 @@ select.portal-input option{background:#fff;}
         </div>
         <div id="sheet-url-status" style="font-size:11px;color:var(--t3);margin-top:7px;"></div>
         <div class="instr-body" id="instr-body" style="margin-top:14px;display:none;">
-          <div style="font-size:11px;color:var(--t2);line-height:1.7;"><strong style="color:var(--teal-mid);">Step 1</strong> — Create a Google Sheet named "WC2026 Predictions". Row 1 headers:<br><code style="font-size:10px;background:var(--page);padding:1px 5px;border-radius:3px;">Timestamp, Name, Type, MatchID, HomeTeam, AwayTeam, HomeScore, AwayScore, Winner, RunnerUp, TopScorer, Surprise, SF1, SF2, SF3, SF4</code></div>
-          <div style="font-size:11px;color:var(--t2);line-height:1.7;margin-top:8px;"><strong style="color:var(--teal-mid);">Step 2</strong> — Extensions → Apps Script → replace ALL code with below → Deploy as Web App, Execute as: Me, Access: Anyone → copy URL above:</div>
-          <pre class="code-block">function doGet(e) {
+          <div style="font-size:11px;color:var(--t2);line-height:1.7;"><strong style="color:var(--teal-mid);">Step 1</strong> — Open your Google Sheet. The script will <strong>auto-create</strong> three tabs: <code style="font-size:10px;background:var(--page);padding:1px 5px;border-radius:3px;">Predictions</code>, <code style="font-size:10px;background:var(--page);padding:1px 5px;border-radius:3px;">Results</code>, <code style="font-size:10px;background:var(--page);padding:1px 5px;border-radius:3px;">Config</code> — no manual setup needed.</div>
+          <div style="font-size:11px;color:var(--t2);line-height:1.7;margin-top:8px;"><strong style="color:var(--teal-mid);">Step 2</strong> — Extensions → Apps Script → replace ALL existing code with below → <strong>Save</strong> → Deploy → <strong>New deployment</strong> → Web app → Execute as: Me, Access: Anyone → Deploy → copy URL. If you already have a deployment, create a new one (don't edit existing):</div>
+          <pre class="code-block">// ════════════════════════════════════════════════════════════
+//  Coevolve WC2026 Predictor — Apps Script
+//  Handles all read and write operations for the app.
+//  Deploy as Web App: Execute as Me, Access: Anyone
+// ════════════════════════════════════════════════════════════
+
+var SS = SpreadsheetApp.getActiveSpreadsheet();
+
+// ── MAIN ENTRY POINT ──
+function doGet(e) {
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet()
-      .getSheetByName('Predictions');
-    const p = (e && e.parameter) ? e.parameter : {};
-    sheet.appendRow([
-      new Date().toISOString(),
-      p.name||'', p.type||'', p.matchId||'',
-      p.homeTeam||'', p.awayTeam||'',
-      p.homeScore||'', p.awayScore||'',
-      p.winner||'', p.runnerUp||'', p.topScorer||'',
-      p.surprise||'', p.sf1||'', p.sf2||'', p.sf3||'', p.sf4||''
-    ]);
+    var p = (e && e.parameter) ? e.parameter : {};
+    var action = p.action || 'writePrediction';
+    var callback = p.callback; // for JSONP reads
+
+    var result;
+
+    if (action === 'getConfig') {
+      result = getConfig();
+    } else if (action === 'getResults') {
+      result = getResults();
+    } else if (action === 'writeConfig') {
+      result = writeConfig(p);
+    } else if (action === 'writeResult') {
+      result = writeResult(p);
+    } else if (action === 'writeBracket') {
+      result = writeBracket(p);
+    } else if (action === 'writePrediction' || action === 'match' || action === 'specials') {
+      result = writePrediction(p);
+    } else {
+      result = { status: 'ok', message: 'No action taken' };
+    }
+
+    var json = JSON.stringify(result);
+
+    // JSONP for reads (allows cross-origin reads from browser)
+    if (callback) {
+      return ContentService
+        .createTextOutput(callback + '(' + json + ')')
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    }
+
     return ContentService
-      .createTextOutput(JSON.stringify({status:'ok'}))
+      .createTextOutput(json)
       .setMimeType(ContentService.MimeType.JSON);
-  } catch(err) {
+
+  } catch (err) {
+    var errJson = JSON.stringify({ status: 'error', message: err.toString() });
     return ContentService
-      .createTextOutput(JSON.stringify({status:'error',message:err.toString()}))
-      .setMimeType(ContentService.MimeType.JSON);
+      .createTextOutput(p && p.callback ? p.callback + '(' + errJson + ')' : errJson)
+      .setMimeType(p && p.callback ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON);
   }
 }
 
-// This runs when you click "Run" in the editor (no e.parameter available)
+// ── READ CONFIG ──
+// Returns phases, participants (with PINs and functions), specialsActual, adminPin
+function getConfig() {
+  var sheet = getOrCreateSheet('Config');
+  var data = sheet.getDataRange().getValues();
+
+  var config = {
+    status: 'ok',
+    phases: { specials: false, groupStage: false },
+    participants: [],
+    specialsActual: {},
+    adminPin: '2026'
+  };
+
+  data.forEach(function(row) {
+    var key = row[0];
+    var val = row[1];
+    if (!key) return;
+
+    if (key === 'phase_specials')   config.phases.specials   = (val === true || val === 'true');
+    if (key === 'phase_groupStage') config.phases.groupStage = (val === true || val === 'true');
+    if (key === 'adminPin')         config.adminPin = String(val || '2026');
+    if (key === 'specialsActual') {
+      try { config.specialsActual = JSON.parse(val); } catch(e) {}
+    }
+    if (key === 'participant') {
+      // row format: participant | name | fn | pin
+      config.participants.push({
+        name: String(row[1] || ''),
+        fn:   String(row[2] || ''),
+        pin:  String(row[3] || '')
+      });
+    }
+  });
+
+  return config;
+}
+
+// ── READ RESULTS ──
+function getResults() {
+  var resultsSheet = getOrCreateSheet('Results');
+  var data = resultsSheet.getDataRange().getValues();
+
+  var out = { status: 'ok', results: {}, bracketResults: {}, bracketTeams: {} };
+
+  data.forEach(function(row) {
+    var type = row[0];
+    if (type === 'result') {
+      // matchId | home | away
+      out.results[row[1]] = { home: Number(row[2]), away: Number(row[3]) };
+    } else if (type === 'bracket') {
+      // bracket | matchId | homeScore | awayScore
+      out.bracketResults[row[1]] = { home: Number(row[2]), away: Number(row[3]) };
+    } else if (type === 'bracketTeam') {
+      // bracketTeam | matchId | homeName | awayName
+      out.bracketTeams[row[1]] = { home: String(row[2] || ''), away: String(row[3] || '') };
+    }
+  });
+
+  return out;
+}
+
+// ── WRITE CONFIG ──
+function writeConfig(p) {
+  var sheet = getOrCreateSheet('Config');
+  sheet.clearContents();
+
+  var rows = [];
+
+  // Phases
+  try {
+    var phases = JSON.parse(p.phases || '{}');
+    rows.push(['phase_specials',   phases.specials   || false]);
+    rows.push(['phase_groupStage', phases.groupStage || false]);
+  } catch(e) {}
+
+  // Admin PIN
+  if (p.adminPin) rows.push(['adminPin', p.adminPin]);
+
+  // Specials actual outcomes
+  if (p.specialsActual) rows.push(['specialsActual', p.specialsActual]);
+
+  // Participants (name | fn | pin)
+  try {
+    var parts = JSON.parse(p.participants || '[]');
+    parts.forEach(function(pt) {
+      rows.push(['participant', pt.name || '', pt.fn || '', pt.pin || '']);
+    });
+  } catch(e) {}
+
+  if (rows.length > 0) {
+    sheet.getRange(1, 1, rows.length, 4).setValues(rows);
+  }
+
+  return { status: 'ok', rows: rows.length };
+}
+
+// ── WRITE RESULT ──
+function writeResult(p) {
+  var sheet = getOrCreateSheet('Results');
+
+  // Check if row already exists for this matchId, update if so
+  var data = sheet.getDataRange().getValues();
+  var found = false;
+  for (var i = 0; i < data.length; i++) {
+    if (data[i][0] === 'result' && data[i][1] === p.matchId) {
+      sheet.getRange(i + 1, 3, 1, 2).setValues([[Number(p.home), Number(p.away)]]);
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    sheet.appendRow(['result', p.matchId, Number(p.home), Number(p.away)]);
+  }
+
+  return { status: 'ok' };
+}
+
+// ── WRITE BRACKET ──
+function writeBracket(p) {
+  var sheet = getOrCreateSheet('Results');
+
+  // Clear existing bracket rows
+  var data = sheet.getDataRange().getValues();
+  var toDelete = [];
+  for (var i = data.length - 1; i >= 0; i--) {
+    if (data[i][0] === 'bracket' || data[i][0] === 'bracketTeam') {
+      toDelete.push(i + 1);
+    }
+  }
+  toDelete.forEach(function(r) { sheet.deleteRow(r); });
+
+  // Write new bracket data
+  try {
+    var br = JSON.parse(p.bracketResults || '{}');
+    Object.keys(br).forEach(function(id) {
+      sheet.appendRow(['bracket', id, Number(br[id].home), Number(br[id].away)]);
+    });
+  } catch(e) {}
+
+  try {
+    var bt = JSON.parse(p.bracketTeams || '{}');
+    Object.keys(bt).forEach(function(id) {
+      sheet.appendRow(['bracketTeam', id, bt[id].home || '', bt[id].away || '']);
+    });
+  } catch(e) {}
+
+  return { status: 'ok' };
+}
+
+// ── WRITE PREDICTION ──
+function writePrediction(p) {
+  if (!p.name) return { status: 'ignored' };
+
+  var sheet = getOrCreateSheet('Predictions');
+  sheet.appendRow([
+    new Date().toISOString(),
+    p.name || '', p.type || '', p.matchId || '',
+    p.homeTeam || '', p.awayTeam || '',
+    p.homeScore || '', p.awayScore || '',
+    p.winner || '', p.runnerUp || '', p.topScorer || '',
+    p.surprise || '', p.sf1 || '', p.sf2 || '', p.sf3 || '', p.sf4 || ''
+  ]);
+
+  return { status: 'ok' };
+}
+
+// ── HELPER: get or create sheet tab ──
+function getOrCreateSheet(name) {
+  var sheet = SS.getSheetByName(name);
+  if (!sheet) {
+    sheet = SS.insertSheet(name);
+    // Add headers
+    if (name === 'Predictions') {
+      sheet.getRange(1, 1, 1, 16).setValues([[
+        'Timestamp','Name','Type','MatchID',
+        'HomeTeam','AwayTeam','HomeScore','AwayScore',
+        'Winner','RunnerUp','TopScorer','Surprise',
+        'SF1','SF2','SF3','SF4'
+      ]]);
+    } else if (name === 'Config') {
+      sheet.getRange(1, 1, 1, 4).setValues([['Key','Value','Value2','Value3']]);
+    } else if (name === 'Results') {
+      sheet.getRange(1, 1, 1, 4).setValues([['Type','MatchID/Key','Home/Value','Away/Value']]);
+    }
+    // Freeze header row
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// ── TEST FUNCTION (use this instead of Run button) ──
 function testRun() {
-  const mockE = {parameter:{name:'Test',type:'match',matchId:'M001',homeTeam:'Mexico',awayTeam:'South Africa',homeScore:'2',awayScore:'1'}};
-  doGet(mockE);
-  Logger.log('Test row added');
-}</pre>
+  var mockRead = doGet({ parameter: { action: 'getConfig', callback: 'testCb' } });
+  Logger.log('getConfig response: ' + mockRead.getContent().substring(0, 200));
+
+  var mockWrite = doGet({ parameter: { action: 'writeResult', matchId: 'M001', home: '2', away: '1' } });
+  Logger.log('writeResult response: ' + mockWrite.getContent());
+}
+</pre>
           <div style="font-size:11px;color:var(--t2);"><strong style="color:var(--teal-mid);">Step 3</strong> — Share → Viewer only. Data → Protected Ranges → lock all. Paste URL above.</div>
           <div style="font-size:11px;color:var(--amber-dk);margin-top:8px;background:var(--amber-bg);padding:8px 10px;border-radius:6px;">⚠️ The <strong>Run</strong> button in the Apps Script editor will always fail with a parameter error — that's normal. Only test via the deployed web app URL. Use <code>testRun()</code> to test from the editor instead.</div>
         </div>
@@ -1132,7 +1381,7 @@ function testRun() {
       <button class="btn-primary" onclick="checkPin()">Enter</button>
       <button class="btn-secondary" onclick="closePinOverlay()">Cancel</button>
     </div>
-    <div style="margin-top:14px;font-size:11px;color:var(--t4);">Default PIN: 2026 — change in Admin settings</div>
+    <div style="margin-top:14px;font-size:11px;color:var(--t4);">Default PIN is 2026 — change it in Admin → Admin PIN</div>
   </div>
 </div>
 
@@ -1148,6 +1397,167 @@ function testRun() {
   <button class="jump-menu-item" onclick="showTab('bracket');closeJumpMenu()">Bracket</button>
 </div>
 <script>
+// ════════════════════════════════════════════════════════════
+//  SHEET SYNC LAYER
+//  All reads and writes go through here.
+//  The Apps Script URL is the single source of truth.
+// ════════════════════════════════════════════════════════════
+
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzz0WZOAkcB7j-V6uGlkxmh7XkJcriSyYgcsL3ArZc-C2k3ct8PcGe3JbwFUxUF5bG6Fg/exec';
+
+// ── CALL SHEET ──
+// All sheet communication goes through this one function.
+// action: 'read' or 'write'
+// data: object of params to send
+async function callSheet(data) {
+  try {
+    const params = new URLSearchParams(data).toString();
+    const res = await fetch(SHEET_URL + '?' + params, { method: 'GET', mode: 'no-cors' });
+    // no-cors means we can't read the response body - fire and forget
+    return { ok: true };
+  } catch(e) {
+    console.warn('Sheet call failed:', e);
+    return { ok: false, error: e.message };
+  }
+}
+
+// ── READ FROM SHEET ──
+// Uses a separate readable fetch (needs CORS-safe endpoint)
+// We use a JSONP-style approach via a script tag to get around CORS
+function readFromSheet(action, callback) {
+  const callbackName = '_sheetCb_' + Date.now();
+  window[callbackName] = function(data) {
+    delete window[callbackName];
+    const el = document.getElementById('_sheet_script_' + callbackName);
+    if(el) el.remove();
+    callback(null, data);
+  };
+  const script = document.createElement('script');
+  script.id = '_sheet_script_' + callbackName;
+  script.src = SHEET_URL + '?action=' + action + '&callback=' + callbackName;
+  script.onerror = () => {
+    delete window[callbackName];
+    script.remove();
+    callback(new Error('Sheet read failed'));
+  };
+  document.head.appendChild(script);
+}
+
+// ── APP INIT — load all state from sheet ──
+function initApp() {
+  showLoadingOverlay('Loading tournament data…');
+
+  readFromSheet('getConfig', (err, data) => {
+    if(err || !data) {
+      console.warn('Could not load config from sheet, using local fallbacks');
+      hideLoadingOverlay();
+      finishInit();
+      return;
+    }
+
+    // Apply config from sheet
+    if(data.phases) {
+      PHASES.specials   = data.phases.specials   ?? PHASES.specials;
+      PHASES.groupStage = data.phases.groupStage ?? PHASES.groupStage;
+    }
+    if(data.participants && Array.isArray(data.participants)) {
+      participants = data.participants.map(p => p.name);
+      data.participants.forEach(p => {
+        if(p.fn)  participantFunctions[p.name] = p.fn;
+        if(p.pin) participantPins[p.name] = p.pin;
+      });
+    }
+    if(data.specialsActual) {
+      specialsActual = data.specialsActual;
+    }
+    if(data.adminPin) {
+      // Store admin PIN from sheet locally for this session
+      localStorage.setItem('admin_pin', data.adminPin);
+    }
+
+    hideLoadingOverlay();
+    finishInit();
+  });
+
+  // Load match results separately (can be large)
+  readFromSheet('getResults', (err, data) => {
+    if(err || !data) return;
+    if(data.results) {
+      Object.assign(results, data.results);
+    }
+    if(data.bracketResults) {
+      Object.assign(bracketResults, data.bracketResults);
+    }
+    if(data.bracketTeams) {
+      Object.assign(bracketTeams, data.bracketTeams);
+    }
+    // Re-render if already showing
+    if(document.getElementById('tab-dashboard').style.display !== 'none') renderDashboard();
+    if(document.getElementById('tab-bracket').style.display !== 'none') renderBracket();
+    renderMatches();
+  });
+}
+
+// ── WRITE CONFIG TO SHEET (admin only) ──
+function syncConfigToSheet() {
+  const configData = {
+    action: 'writeConfig',
+    phases: JSON.stringify(PHASES),
+    participants: JSON.stringify(participants.map(name => ({
+      name,
+      fn: participantFunctions[name] || '',
+      pin: participantPins[name] || ''
+    }))),
+    specialsActual: JSON.stringify(specialsActual),
+    adminPin: localStorage.getItem('admin_pin') || '2026'
+  };
+  callSheet(configData);
+}
+
+// ── WRITE RESULT TO SHEET ──
+function syncResultToSheet(matchId, home, away) {
+  callSheet({
+    action: 'writeResult',
+    matchId, home, away
+  });
+}
+
+// ── WRITE BRACKET RESULT TO SHEET ──
+function syncBracketToSheet() {
+  callSheet({
+    action: 'writeBracket',
+    bracketResults: JSON.stringify(bracketResults),
+    bracketTeams:   JSON.stringify(bracketTeams)
+  });
+}
+
+// ── LOADING OVERLAY ──
+function showLoadingOverlay(msg) {
+  let ov = document.getElementById('loading-overlay');
+  if(!ov) {
+    ov = document.createElement('div');
+    ov.id = 'loading-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(247,248,250,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px;';
+    ov.innerHTML = '<div style="width:36px;height:36px;border:3px solid #ebecf0;border-top-color:#25C4B3;border-radius:50%;animation:spin .8s linear infinite;"></div><div id="loading-msg" style="font-family:Open Sans,sans-serif;font-size:14px;font-weight:600;color:#4e5d78;"></div>';
+    document.body.appendChild(ov);
+    // Add spin keyframe if not present
+    if(!document.getElementById('spin-style')) {
+      const st = document.createElement('style');
+      st.id = 'spin-style';
+      st.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(st);
+    }
+  }
+  document.getElementById('loading-msg').textContent = msg || 'Loading…';
+  ov.style.display = 'flex';
+}
+
+function hideLoadingOverlay() {
+  const ov = document.getElementById('loading-overlay');
+  if(ov) ov.style.display = 'none';
+}
+
+
 const TEAMS=["Algeria", "Argentina", "Australia", "Austria", "Belgium", "Bosnia and Herzegovina", "Brazil", "Cabo Verde", "Canada", "Colombia", "Congo DR", "Croatia", "Curaçao", "Czechia", "Côte d'Ivoire", "Ecuador", "Egypt", "England", "France", "Germany", "Ghana", "Haiti", "IR Iran", "Iraq", "Japan", "Jordan", "Korea Republic", "Mexico", "Morocco", "Netherlands", "New Zealand", "Norway", "Panama", "Paraguay", "Portugal", "Qatar", "Saudi Arabia", "Scotland", "Senegal", "South Africa", "Spain", "Sweden", "Switzerland", "Tunisia", "Türkiye", "USA", "Uruguay", "Uzbekistan"];
 
 // All 104 matches from official FIFA WC2026 schedule (times stored as UTC)
@@ -1321,24 +1731,18 @@ let participantFunctions = {
   'Dex Manager':'mgmt'
 };
 
-// Participant PINs — stored in localStorage, only admin can set
-let participantPins = JSON.parse(localStorage.getItem('participantPins')||'{}');
-let verifiedUser = null; // name of currently PIN-verified participant
+// ── STATE — all persisted via Google Sheet, localStorage as session cache only ──
+let participantPins = {};          // loaded from sheet on init
+let verifiedUser = null;           // session only — re-verify each visit (intentional)
+let predictions = {};              // built from sheet Predictions tab
+let results = {};                  // loaded from sheet Results tab
+let activeGroupFilter = 'all';
 
-function saveParticipantPins() {
-  localStorage.setItem('participantPins', JSON.stringify(participantPins));
-}
+const PHASES = { specials: false, groupStage: false }; // loaded from sheet
 
-let predictions={}, results={};
-let sheetUrl='https://script.google.com/macros/s/AKfycbzz0WZOAkcB7j-V6uGlkxmh7XkJcriSyYgcsL3ArZc-C2k3ct8PcGe3JbwFUxUF5bG6Fg/exec';
-let activeGroupFilter='all';
+function savePhases() { syncConfigToSheet(); }
 
-// ── PHASE STATE (persisted) ──
-const PHASES = {
-  specials: JSON.parse(localStorage.getItem('phase_specials')||'true'),
-  groupStage: JSON.parse(localStorage.getItem('phase_groupStage')||'false'),
-};
-function savePhases(){ Object.entries(PHASES).forEach(([k,v])=>localStorage.setItem('phase_'+k,JSON.stringify(v))); }
+function saveParticipantPins() { syncConfigToSheet(); }
 
 // ── USER TIMEZONE ──
 /* ── FILTER LOGIC ── */
@@ -1789,6 +2193,7 @@ function saveSpecialsResults() {
     sf4:document.getElementById('actual-sf4').value,
   };
   localStorage.setItem('specialsActual', JSON.stringify(specialsActual));
+  syncConfigToSheet();
   const st=document.getElementById('specials-result-status');
   if(st) st.textContent='✓ Saved — specials are now scored';
   showToast('Special outcomes saved');
@@ -1812,10 +2217,8 @@ function scoreSpecials(pred, actual) {
 }
 
 function postToSheet(payload) {
-  if(!sheetUrl) return;
-  // Use GET with encoded params - avoids CORS preflight issues with Apps Script
-  const params = new URLSearchParams(payload).toString();
-  fetch(sheetUrl+'?'+params, {method:'GET', mode:'no-cors'}).catch(()=>{});
+  // Route through callSheet (uses SHEET_URL constant)
+  callSheet(payload);
 }
 
 function submitPredictions(){
@@ -1870,7 +2273,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const ex=results[id];document.getElementById('res-score-home').value=ex?ex.home:'';document.getElementById('res-score-away').value=ex?ex.away:'';
     area.style.display='block';
   });
-  if(sheetUrl)document.getElementById('sheet-url').value=sheetUrl;
+  if(SHEET_URL)document.getElementById('sheet-url').value=SHEET_URL;
 });
 
 function saveResult(){
@@ -1885,9 +2288,10 @@ function saveResult(){
 }
 
 function saveSheetUrl(){
-  sheetUrl=document.getElementById('sheet-url').value.trim();
-  document.getElementById('sheet-url-status').textContent=sheetUrl?'✓ URL saved.':'URL cleared.';
-  showToast('Sheet URL saved');
+  // URL is now hardcoded in SHEET_URL constant - this just shows confirmation
+  const entered = document.getElementById('sheet-url').value.trim();
+  document.getElementById('sheet-url-status').textContent = entered === SHEET_URL ? '✓ URL matches deployed script' : '⚠️ URL differs from configured script';
+  showToast('Sheet URL noted');
 }
 
 function togglePhase(key) {
@@ -1936,13 +2340,13 @@ function addParticipant(){
   participants.push(name);
   if(fnSel&&fnSel.value) participantFunctions[name]=fnSel.value;
   inp.value=''; if(fnSel) fnSel.value='';
-  renderChips(); renderPinMgmt(); showToast(`${name} added`);
+  renderChips(); renderPinMgmt(); syncConfigToSheet(); showToast(`${name} added & synced`);
 }
 function removeParticipant(name){
   participants=participants.filter(p=>p!==name);
   delete participantFunctions[name];
   delete participantPins[name];
-  saveParticipantPins();
+  saveParticipantPins(); // triggers syncConfigToSheet
   renderChips(); renderPinMgmt();
 }
 function toggleInstr(){const b=document.getElementById('instr-body'),t=document.getElementById('instr-toggle');const s=b.style.display!=='none';b.style.display=s?'none':'block';t.textContent=s?'Show setup guide':'Hide setup guide';}
@@ -2274,6 +2678,38 @@ function renderPublicPage(){
 // ── PIN AUTH ──
 let adminUnlocked = false;
 
+function changeAdminPin() {
+  const newPin = document.getElementById('new-admin-pin')?.value.trim();
+  const confirm = document.getElementById('confirm-admin-pin')?.value.trim();
+  const status = document.getElementById('admin-pin-status');
+
+  if(!newPin) {
+    if(status) { status.textContent = 'Please enter a new PIN.'; status.style.color = 'var(--red-dk)'; }
+    return;
+  }
+  if(newPin !== confirm) {
+    if(status) { status.textContent = "PINs don't match."; status.style.color = 'var(--red-dk)'; }
+    document.getElementById('new-admin-pin').value = '';
+    document.getElementById('confirm-admin-pin').value = '';
+    return;
+  }
+  if(newPin.length < 4) {
+    if(status) { status.textContent = 'PIN must be at least 4 characters.'; status.style.color = 'var(--red-dk)'; }
+    return;
+  }
+
+  localStorage.setItem('admin_pin', newPin);
+  syncConfigToSheet(); // sync to sheet so all devices use new PIN
+  document.getElementById('new-admin-pin').value = '';
+  document.getElementById('confirm-admin-pin').value = '';
+  if(status) {
+    status.textContent = '✓ Admin PIN updated';
+    status.style.color = 'var(--green-dk)';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  }
+  showToast('Admin PIN changed — remember your new PIN!');
+}
+
 function checkPin() {
   const input = document.getElementById('pin-input').value;
   const correct = localStorage.getItem('admin_pin') || '2026';
@@ -2316,10 +2752,10 @@ document.addEventListener('click', e => {
 });
 
 // ── BRACKET ──
-let bracketResults = JSON.parse(localStorage.getItem('bracketResults')||'{}');
-let bracketTeams = JSON.parse(localStorage.getItem('bracketTeams')||'{}'); // {matchId: {home:'Team A', away:'Team B'}}
-function saveBracketResults() { localStorage.setItem('bracketResults', JSON.stringify(bracketResults)); }
-function saveBracketTeams() { localStorage.setItem('bracketTeams', JSON.stringify(bracketTeams)); }
+let bracketResults = {};
+let bracketTeams = {};
+function saveBracketResults() { syncBracketToSheet(); }
+function saveBracketTeams() { syncBracketToSheet(); }
 
 function renderBracket() {
   const c = document.getElementById('bracket-content');
@@ -2503,12 +2939,12 @@ function savePinsFromAdmin() {
     if(val) participantPins[name] = val;
     else delete participantPins[name];
   });
-  saveParticipantPins();
+  saveParticipantPins(); // triggers syncConfigToSheet
   renderPinMgmt();
   const st = document.getElementById('pin-save-status');
-  if(st) st.textContent = '✓ PINs saved';
+  if(st) { st.textContent = '✓ PINs saved & synced to sheet'; st.style.color='var(--green-dk)'; }
   setTimeout(() => { const s=document.getElementById('pin-save-status'); if(s) s.textContent=''; }, 3000);
-  showToast('PINs saved — share them via Teams DM');
+  showToast('PINs saved & synced — share via Teams DM');
 }
 
 function generateAllPins() {
@@ -2525,11 +2961,22 @@ function generateAllPins() {
 
 function showToast(msg,isError=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(isError?' error':'');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 
+// Populate static selects first
 populateTeamSelects();
-renderMatches();
-renderChips();
-renderPhaseToggles();
-updatePhaseBadges();
+// Then init from sheet (loads participants, phases, results, PINs)
+function finishInit() {
+  renderChips();
+  renderMatches();
+  renderPhaseToggles();
+  updatePhaseBadges();
+  // Set view mode button
+  document.querySelectorAll('.view-mode-btn').forEach(btn=>{
+    const modeMap={'Matchday':'round','Group':'group','Next 7 days':'upcoming7','All matches':'all'};
+    btn.classList.toggle('active', modeMap[btn.textContent.trim()]===matchViewMode);
+  });
+}
+// Kick off sheet init
+initApp();
 
 // Set active view mode button
 document.querySelectorAll('.view-mode-btn').forEach(btn=>{
