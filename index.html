@@ -1405,6 +1405,17 @@ function testRun() {
 
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzz0WZOAkcB7j-V6uGlkxmh7XkJcriSyYgcsL3ArZc-C2k3ct8PcGe3JbwFUxUF5bG6Fg/exec';
 
+// Escape untrusted strings before injecting into innerHTML or "double-quoted" attributes.
+// Participant names, team names, and PIN values come from the sheet — treat them as untrusted.
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ── CALL SHEET ──
 // All sheet communication goes through this one function.
 // action: 'read' or 'write'
@@ -2050,7 +2061,17 @@ function renderChips(){
     const fnCls=fnKey&&FUNCTIONS[fnKey]?FUNCTIONS[fnKey].cls:'fn-none';
     const fnLabel=fnKey&&FUNCTIONS[fnKey]?FUNCTIONS[fnKey].label:'Unassigned';
     const ch=document.createElement('div');ch.className='p-chip';
-    ch.innerHTML=`<span class="fn-badge ${fnCls}" style="font-size:9px;margin-right:4px;">${fnLabel}</span><span>${n}</span><button class="p-chip-rm" onclick="removeParticipant('${n}')">×</button>`;
+    const badge=document.createElement('span');
+    badge.className='fn-badge '+fnCls;
+    badge.style.cssText='font-size:9px;margin-right:4px;';
+    badge.textContent=fnLabel;
+    const nameSpan=document.createElement('span');
+    nameSpan.textContent=n;
+    const rm=document.createElement('button');
+    rm.className='p-chip-rm';
+    rm.textContent='×';
+    rm.addEventListener('click',()=>removeParticipant(n));
+    ch.appendChild(badge); ch.appendChild(nameSpan); ch.appendChild(rm);
     c.appendChild(ch);
   });
   const sel=document.getElementById('participant-select');const cur=sel.value;
@@ -2418,9 +2439,9 @@ function renderDashboard(){
     const row=document.createElement('div');row.className='lb-row';
     if(hasSpecials){
       const matchPts=s.total-s.specials;
-      row.innerHTML=`<span class="rank ${rankClass}">${i+1}</span><span class="lb-name">${name}</span><span class="lb-pts">${matchPts}</span><span class="lb-pts" style="color:var(--amber-dk)">${s.specials>0?'+'+s.specials:'—'}</span><span class="lb-pts total">${s.total}</span><span class="lb-pts">${s.exact}</span>`;
+      row.innerHTML=`<span class="rank ${rankClass}">${i+1}</span><span class="lb-name">${esc(name)}</span><span class="lb-pts">${matchPts}</span><span class="lb-pts" style="color:var(--amber-dk)">${s.specials>0?'+'+s.specials:'—'}</span><span class="lb-pts total">${s.total}</span><span class="lb-pts">${s.exact}</span>`;
     } else {
-      row.innerHTML=`<span class="rank ${rankClass}">${i+1}</span><span class="lb-name">${name}</span><span class="lb-pts total">${s.total}</span><span class="lb-pts">${s.correct}</span><span class="lb-pts">${s.exact}</span><span class="lb-pts">${s.played}</span>`;
+      row.innerHTML=`<span class="rank ${rankClass}">${i+1}</span><span class="lb-name">${esc(name)}</span><span class="lb-pts total">${s.total}</span><span class="lb-pts">${s.correct}</span><span class="lb-pts">${s.exact}</span><span class="lb-pts">${s.played}</span>`;
     }
     lb.appendChild(row);
     const barRow=document.createElement('div');barRow.className='lb-row';barRow.style.cssText='padding-top:0;padding-bottom:10px;';
@@ -2442,7 +2463,7 @@ function renderDashboard(){
       const h=maxG>0?Math.max(2,Math.round((pts/maxG)*18)):2;
       return `<div class="trend-spark" style="height:${h}px;background:${pts>0?'var(--teal)':'var(--border)'}" title="${g}: ${pts}pts"></div>`;
     }).join('');
-    row.innerHTML=`<span class="trend-name">${name}</span><div class="trend-sparks">${sparks}</div><span class="trend-total">${s.total}</span>`;
+    row.innerHTML=`<span class="trend-name">${esc(name)}</span><div class="trend-sparks">${sparks}</div><span class="trend-total">${s.total}</span>`;
     tBody.appendChild(row);
   });
   tCard.appendChild(tBody);
@@ -2453,7 +2474,7 @@ function renderDashboard(){
   uCard.innerHTML=`<h3>Upset Predictors</h3><p style="font-size:12px;color:var(--t3);margin-bottom:14px;">Away wins — who called them?</p>`;
   const upsets=ALL_MATCHES.filter(m=>results[m.id]&&results[m.id].away>results[m.id].home);
   if(!upsets.length){uCard.innerHTML+=`<p style="color:var(--t3);font-size:13px;">No upsets yet.</p>`;}
-  else{upsets.forEach(m=>{const r=results[m.id];const tippers=participants.filter(n=>{const p=(predictions[n]||{})[m.id];return p&&res(p.home,p.away)===res(r.home,r.away);});const row=document.createElement('div');row.className='upset-row';row.innerHTML=`<div><div class="upset-match">${m.home} ${r.home}–${r.away} ${m.away}</div><div class="upset-tippers">${tippers.length?'Called by: '+tippers.join(', '):'Nobody called it'}</div></div><span class="upset-count">${tippers.length} / ${participants.length}</span>`;uCard.appendChild(row);});}
+  else{upsets.forEach(m=>{const r=results[m.id];const tippers=participants.filter(n=>{const p=(predictions[n]||{})[m.id];return p&&res(p.home,p.away)===res(r.home,r.away);});const row=document.createElement('div');row.className='upset-row';row.innerHTML=`<div><div class="upset-match">${m.home} ${r.home}–${r.away} ${m.away}</div><div class="upset-tippers">${tippers.length?'Called by: '+tippers.map(esc).join(', '):'Nobody called it'}</div></div><span class="upset-count">${tippers.length} / ${participants.length}</span>`;uCard.appendChild(row);});}
   c.appendChild(uCard);
 
   // Accuracy
@@ -2501,18 +2522,18 @@ function renderDashboard(){
   funCard.innerHTML=`<h3>Fun stats</h3><p class="sub">Highlights across the tournament so far</p>`;
   const funGrid=document.createElement('div');funGrid.className='fun-stat-grid';
   const topTipper=ranked[0];
-  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🎯</div><div class="fun-stat-label">Top Tipper</div><div class="fun-stat-name">${topTipper?topTipper[0]:'TBD'}</div><div class="fun-stat-sub">${topTipper?topTipper[1].total+' pts':''}</div></div>`;
+  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🎯</div><div class="fun-stat-label">Top Tipper</div><div class="fun-stat-name">${topTipper?esc(topTipper[0]):'TBD'}</div><div class="fun-stat-sub">${topTipper?topTipper[1].total+' pts':''}</div></div>`;
   const exactLeader=ranked.slice().sort((a,b)=>b[1].exact-a[1].exact)[0];
-  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🔮</div><div class="fun-stat-label">Exact Score King</div><div class="fun-stat-name">${exactLeader&&exactLeader[1].exact>0?exactLeader[0]:'TBD'}</div><div class="fun-stat-sub">${exactLeader&&exactLeader[1].exact>0?exactLeader[1].exact+' exact scores':''}</div></div>`;
+  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🔮</div><div class="fun-stat-label">Exact Score King</div><div class="fun-stat-name">${exactLeader&&exactLeader[1].exact>0?esc(exactLeader[0]):'TBD'}</div><div class="fun-stat-sub">${exactLeader&&exactLeader[1].exact>0?exactLeader[1].exact+' exact scores':''}</div></div>`;
   const funUpsets=ALL_MATCHES.filter(m=>results[m.id]&&results[m.id].away>results[m.id].home);
   const funUpsetCounts={};participants.forEach(n=>{funUpsetCounts[n]=0;});
   funUpsets.forEach(m=>{const r=results[m.id];participants.forEach(n=>{const p=(predictions[n]||{})[m.id];if(p&&res(p.home,p.away)===res(r.home,r.away))funUpsetCounts[n]++;});});
   const upsetKing=Object.entries(funUpsetCounts).sort((a,b)=>b[1]-a[1])[0];
-  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">😤</div><div class="fun-stat-label">Upset King</div><div class="fun-stat-name">${upsetKing&&upsetKing[1]>0?upsetKing[0]:'Nobody yet'}</div><div class="fun-stat-sub">${upsetKing&&upsetKing[1]>0?upsetKing[1]+' upsets called':''}</div></div>`;
+  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">😤</div><div class="fun-stat-label">Upset King</div><div class="fun-stat-name">${upsetKing&&upsetKing[1]>0?esc(upsetKing[0]):'Nobody yet'}</div><div class="fun-stat-sub">${upsetKing&&upsetKing[1]>0?upsetKing[1]+' upsets called':''}</div></div>`;
   const lastMs=ALL_MATCHES.filter(m=>results[m.id]).slice(-3);
   const recentPts={};participants.forEach(n=>{recentPts[n]=lastMs.reduce((s,m)=>s+scoreMatch((predictions[n]||{})[m.id],results[m.id]),0);});
   const hotStreak=Object.entries(recentPts).sort((a,b)=>b[1]-a[1])[0];
-  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🔥</div><div class="fun-stat-label">On Fire (last 3)</div><div class="fun-stat-name">${hotStreak&&hotStreak[1]>0?hotStreak[0]:'TBD'}</div><div class="fun-stat-sub">${hotStreak&&hotStreak[1]>0?hotStreak[1]+' pts':''}</div></div>`;
+  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🔥</div><div class="fun-stat-label">On Fire (last 3)</div><div class="fun-stat-name">${hotStreak&&hotStreak[1]>0?esc(hotStreak[0]):'TBD'}</div><div class="fun-stat-sub">${hotStreak&&hotStreak[1]>0?hotStreak[1]+' pts':''}</div></div>`;
   funCard.appendChild(funGrid);
   c.appendChild(funCard);
 }
@@ -2802,12 +2823,12 @@ function renderBracket() {
       card.innerHTML =
         `<div class="bracket-team ${homeIsWinner?'winner':''}">
           <span class="bt-flag">${hf}</span>
-          <span class="bt-name">${homeDisplay||'<span class="bracket-slot">TBD</span>'}</span>
+          <span class="bt-name">${homeDisplay?esc(homeDisplay):'<span class="bracket-slot">TBD</span>'}</span>
           ${r?`<span class="bt-score">${r.home}</span>`:''}
         </div>
         <div class="bracket-team ${awayIsWinner?'winner':''}">
           <span class="bt-flag">${af}</span>
-          <span class="bt-name">${awayDisplay||'<span class="bracket-slot">TBD</span>'}</span>
+          <span class="bt-name">${awayDisplay?esc(awayDisplay):'<span class="bracket-slot">TBD</span>'}</span>
           ${r?`<span class="bt-score">${r.away}</span>`:''}
         </div>
         <div style="padding:4px 10px 6px;font-size:10px;color:var(--t4);font-family:'DM Mono',monospace;">${fmtDate(m.utc)}</div>`;
@@ -2911,19 +2932,19 @@ function renderPinMgmt() {
     list.innerHTML = '<div style="font-size:13px;color:var(--t3);padding:8px 0;">No participants yet — add them above first.</div>';
     return;
   }
-  participants.forEach(name => {
+  participants.forEach((name, idx) => {
     const row = document.createElement('div');
     row.className = 'pin-mgmt-row';
     const fnKey = participantFunctions[name];
     const fnLabel = fnKey && FUNCTIONS[fnKey] ? FUNCTIONS[fnKey].label : '';
     row.innerHTML = `
       <div>
-        <div class="pin-mgmt-name">${name}</div>
-        ${fnLabel ? `<div style="font-size:11px;color:var(--t3);">${fnLabel}</div>` : ''}
+        <div class="pin-mgmt-name">${esc(name)}</div>
+        ${fnLabel ? `<div style="font-size:11px;color:var(--t3);">${esc(fnLabel)}</div>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <input class="pin-mgmt-input" type="text" id="pin-for-${name.replace(/\s+/g,'_')}"
-               value="${participantPins[name]||''}" maxlength="8"
+        <input class="pin-mgmt-input" type="text" data-pin-idx="${idx}"
+               value="${esc(participantPins[name]||'')}" maxlength="8"
                placeholder="no pin" autocomplete="off">
         <span style="font-size:11px;color:var(--t3);white-space:nowrap;">${participantPins[name]?'✓ set':'not set'}</span>
       </div>`;
@@ -2932,8 +2953,9 @@ function renderPinMgmt() {
 }
 
 function savePinsFromAdmin() {
-  participants.forEach(name => {
-    const inp = document.getElementById('pin-for-'+name.replace(/\s+/g,'_'));
+  const list = document.getElementById('pin-mgmt-list');
+  participants.forEach((name, idx) => {
+    const inp = list?.querySelector(`[data-pin-idx="${idx}"]`);
     if(!inp) return;
     const val = inp.value.trim();
     if(val) participantPins[name] = val;
