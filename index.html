@@ -111,17 +111,17 @@ select,input{font-family:inherit;}
 
 /* ── STICKY SUBMIT BAR ── */
 .sticky-submit-bar{
-  position:sticky;bottom:0;left:0;right:0;
+  position:fixed;bottom:0;left:220px;right:0;
   background:var(--surface);
-  border-top:1px solid var(--border);
-  padding:12px 26px;
+  border-top:2px solid var(--teal);
+  padding:14px 32px;
   display:flex;align-items:center;justify-content:space-between;gap:16px;
   flex-wrap:wrap;
-  box-shadow:0 -4px 16px rgba(31,38,47,.08);
-  z-index:40;
-  margin:0 -26px;
+  box-shadow:0 -4px 20px rgba(31,38,47,.12);
+  z-index:400;
 }
 .sticky-submit-bar.hidden{display:none;}
+@media(max-width:700px){.sticky-submit-bar{left:0;}}
 .submit-note{font-size:14px;color:var(--t3);}
 
 /* ── COMPACT TREND ── */
@@ -170,7 +170,7 @@ select,input{font-family:inherit;}
 }
 
 /* ── CONTENT ── */
-.content{padding:26px 32px;flex:1;max-width:960px;margin:0 auto;width:100%;}
+.content{padding:26px 32px 100px;flex:1;max-width:960px;margin:0 auto;width:100%;}
 
 /* ── SECTION LABELS ── */
 .section-label{
@@ -400,7 +400,7 @@ select.portal-input option{background:#fff;}
 
 /* ── TOAST ── */
 .toast{
-  position:fixed;bottom:22px;left:50%;
+  position:fixed;bottom:90px;left:50%;
   transform:translateX(-50%) translateY(50px);
   background:var(--navy);color:#fff;
   font-size:14px;font-weight:600;
@@ -2194,12 +2194,18 @@ async function submitPredictions(){
       awayScore: pred.away,
     }));
   });
+  // Show saving state
+  const submitBtn = document.getElementById('main-submit-btn');
+  const origText = submitBtn?.textContent;
+  if(submitBtn) { submitBtn.textContent = 'Saving…'; submitBtn.disabled = true; }
+
   await Promise.all(writes);
 
+  if(submitBtn) { submitBtn.textContent = origText || 'Submit predictions'; submitBtn.disabled = false; }
   document.getElementById('submitted-badge').classList.add('show');
-  const note=document.getElementById('submit-note');
-  if(note) note.textContent=`Submitted at ${new Date().toLocaleTimeString()}`;
-  showToast(`✓ Predictions submitted for ${name}`);
+  const note = document.getElementById('submit-note');
+  if(note) note.textContent = `Last saved ${new Date().toLocaleTimeString()}`;
+  showToast(`✓ ${Object.keys(matchPreds).length} match predictions + specials saved`);
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
@@ -2988,6 +2994,18 @@ populateTeamSelects();
 
 // 2. finishInit is called by initApp() after DB loads
 function finishInit() {
+  // Rebuild participant dropdown with DB-loaded participants
+  const sel = document.getElementById('participant-select');
+  if(sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— select your name —</option>';
+    participants.forEach(name => {
+      const o = document.createElement('option');
+      o.value = name; o.textContent = name;
+      sel.appendChild(o);
+    });
+    if(cur && participants.includes(cur)) sel.value = cur;
+  }
   renderChips();
   renderMatches();
   renderPhaseToggles();
