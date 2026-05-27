@@ -120,7 +120,7 @@ select,input{font-family:inherit;}
   box-shadow:0 -4px 20px rgba(31,38,47,.12);
   z-index:400;
 }
-.sticky-submit-bar.hidden{display:none;}
+/* .hidden managed via style.display */
 @media(max-width:700px){.sticky-submit-bar{left:0;}}
 .submit-note{font-size:14px;color:var(--t3);}
 
@@ -921,7 +921,7 @@ select.portal-input option{background:#fff;}
 
       </div><!-- /predictions-content -->
       <!-- sticky submit bar -->
-      <div class="sticky-submit-bar hidden" id="sticky-submit-bar">
+      <div class="sticky-submit-bar" id="sticky-submit-bar" style="display:none;">
         <div>
           <div style="font-size:12px;font-weight:700;color:var(--t1);" id="sticky-name-label">—</div>
           <div class="submit-note" id="submit-note">Select your name above to enable submission</div>
@@ -1199,7 +1199,7 @@ create policy "anon all" on predictions  for all using (true) with check (true);
 // ════════════════════════════════════════════════════════════
 
 const SUPABASE_URL      = 'https://hthzwxxlryrttwiiksru.supabase.co';      // e.g. https://xxxx.supabase.co
-const SUPABASE_ANON_KEY = 'sb_publishable_cM_2MbnrQpuhKSqhy0Rb-g_f6ayterV'; // PASTE YOUR PUBLISHABLE KEY HERE (sb_publishable_...)
+const SUPABASE_ANON_KEY = 'sb_publishable_cM_2MbnrQpuhKSqhy0Rb-g_f6ayterV';
 
 // ── LOW-LEVEL FETCH WRAPPER ──
 async function sbFetch(path, opts = {}) {
@@ -2014,7 +2014,7 @@ function onParticipantChange(){
     content?.classList.add('predictions-locked');
     btn.disabled = true;
     badge.classList.remove('show');
-    bar?.classList.add('hidden');
+    if(bar) bar.style.display='none';
     clearInputs();
     return;
   }
@@ -2026,7 +2026,7 @@ function onParticipantChange(){
     pinBar?.classList.add('show');
     content?.classList.add('predictions-locked');
     btn.disabled = true;
-    bar?.classList.add('hidden');
+    if(bar) bar.style.display='none';
     setTimeout(() => pinInput?.focus(), 100);
   } else {
     // No PIN set — allow access (admin can set later)
@@ -2034,7 +2034,7 @@ function onParticipantChange(){
     content?.classList.remove('predictions-locked');
     verifiedUser = name;
     btn.disabled = false;
-    bar?.classList.remove('hidden');
+    if(bar) bar.style.display='';
     if(nameLabel) nameLabel.textContent = name;
     badge.classList.toggle('show', !!predictions[name]);
     renderMatches();
@@ -2095,7 +2095,7 @@ function unlockPredictions(name) {
 
   content?.classList.remove('predictions-locked');
   btn.disabled = false;
-  bar?.classList.remove('hidden');
+  if(bar) bar.style.display='';
   if(nameLabel) nameLabel.textContent = name;
   badge.classList.toggle('show', !!predictions[name]);
   renderMatches();
@@ -2201,11 +2201,15 @@ async function submitPredictions(){
 
   await Promise.all(writes);
 
-  if(submitBtn) { submitBtn.textContent = origText || 'Submit predictions'; submitBtn.disabled = false; }
+  if(submitBtn) { submitBtn.textContent = '✓ Saved'; submitBtn.style.background='var(--green-dk)'; }
+  setTimeout(() => {
+    if(submitBtn) { submitBtn.textContent = 'Submit predictions'; submitBtn.style.background=''; submitBtn.disabled = false; }
+  }, 2500);
   document.getElementById('submitted-badge').classList.add('show');
   const note = document.getElementById('submit-note');
-  if(note) note.textContent = `Last saved ${new Date().toLocaleTimeString()}`;
-  showToast(`✓ ${Object.keys(matchPreds).length} match predictions + specials saved`);
+  const matchCount = Object.keys(matchPreds).length;
+  if(note) note.textContent = `✓ Saved ${matchCount} match${matchCount!==1?'es':''} + specials at ${new Date().toLocaleTimeString()}`;
+  showToast(`Predictions saved to database ✓`);
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
