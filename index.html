@@ -1198,8 +1198,8 @@ create policy "anon all" on predictions  for all using (true) with check (true);
 //  from Project Settings → API in your Supabase dashboard
 // ════════════════════════════════════════════════════════════
 
-const SUPABASE_URL      = https://hthzwxxlryrttwiiksru.supabase.co;      // e.g. https://xxxx.supabase.co
-const SUPABASE_ANON_KEY = sb_publishable_cM_2MbnrQpuhKSqhy0Rb-g_f6ayterV; // long JWT string from API settings
+const SUPABASE_URL      = 'https://hthzwxxlryrttwiiksru.supabase.co';      // e.g. https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = 'sb_publishable_cM_2MbnrQpuhKSqhy0Rb-g_f6ayterV'; // PASTE YOUR PUBLISHABLE KEY HERE (sb_publishable_...)
 
 // ── LOW-LEVEL FETCH WRAPPER ──
 async function sbFetch(path, opts = {}) {
@@ -1411,19 +1411,23 @@ async function postToSheet(payload) {
 // ════════════════════════════════════════════════════════════
 
 async function initApp() {
-  showLoadingOverlay('Connecting to database…');
+  // If neither credential is set, run with local defaults (UI still works)
+  const urlSet = SUPABASE_URL  && SUPABASE_URL  !== 'YOUR_SUPABASE_URL';
+  const keySet = SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
 
-  // Check credentials are set
-  if(SUPABASE_URL === 'YOUR_SUPABASE_URL') {
-    hideLoadingOverlay();
+  if(!urlSet || !keySet) {
+    // Show warning banner but still initialise the UI
     showConfigWarning();
     finishInit();
     return;
   }
 
+  showLoadingOverlay('Loading tournament data…');
+
   const ok = await loadAllFromSupabase();
   if(!ok) {
     console.warn('Supabase load failed — running with defaults');
+    showToast('Could not reach database — check connection', true);
   }
 
   hideLoadingOverlay();
@@ -1433,7 +1437,7 @@ async function initApp() {
 function showConfigWarning() {
   const w = document.createElement('div');
   w.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#E6BE2F;color:#1F262F;padding:10px 20px;font-size:13px;font-weight:700;text-align:center;z-index:9998;';
-  w.textContent = '⚠️  Supabase not configured — open the HTML file and set SUPABASE_URL and SUPABASE_ANON_KEY';
+  w.innerHTML = '⚠️ &nbsp;<strong>Database not connected</strong> — predictions will not be saved until Supabase credentials are set in the HTML file.';
   document.body.prepend(w);
 }
 
@@ -2949,31 +2953,24 @@ function toggleInstr() {
 
 function showToast(msg,isError=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(isError?' error':'');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 
-// Populate static selects first
+// ── INITIALISE ──
+// 1. Populate static team dropdowns (no DB needed)
 populateTeamSelects();
-// Then init from sheet (loads participants, phases, results, PINs)
+
+// 2. finishInit is called by initApp() after DB loads
 function finishInit() {
   renderChips();
   renderMatches();
   renderPhaseToggles();
   updatePhaseBadges();
-  // Set view mode button
-  document.querySelectorAll('.view-mode-btn').forEach(btn=>{
-    const modeMap={'Matchday':'round','Group':'group','Next 7 days':'upcoming7','All matches':'all'};
-    btn.classList.toggle('active', modeMap[btn.textContent.trim()]===matchViewMode);
+  document.querySelectorAll('.view-mode-btn').forEach(btn => {
+    const map = {'Matchday':'round','Group':'group','Next 7 days':'upcoming7','All matches':'all'};
+    btn.classList.toggle('active', map[btn.textContent.trim()] === matchViewMode);
   });
 }
-initApp();
-// Kick off sheet init
-initApp();
 
-// Set active view mode button
-document.querySelectorAll('.view-mode-btn').forEach(btn=>{
-  const mode=btn.textContent.trim().toLowerCase().replace(/ /g,'');
-  const modeMap={'matchday':'round','group':'group','next7days':'upcoming7','allmatches':'all'};
-  const btnMode=modeMap[mode]||mode;
-  btn.classList.toggle('active', btnMode===matchViewMode);
-});
+// 3. Kick off — loads all state from Supabase, then calls finishInit()
+initApp();
 </script>
 </body>
 </html>
