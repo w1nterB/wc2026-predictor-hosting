@@ -1216,9 +1216,19 @@ async function sbFetch(path, opts = {}) {
       headers: { ...headers, ...(opts.headers || {}) },
       body:    opts.body    ? JSON.stringify(opts.body) : undefined,
     });
-    if(opts.method === 'GET' || opts.prefer === 'return=representation') {
+    const method = opts.method || 'GET';
+    if(method === 'GET') {
       const text = await res.text();
+      if(!res.ok) {
+        console.error('Supabase GET error', res.status, text);
+        return [];
+      }
       return text ? JSON.parse(text) : [];
+    }
+    // For writes — log errors but don't crash
+    if(!res.ok) {
+      const text = await res.text();
+      console.error('Supabase write error', res.status, text);
     }
     return { ok: res.ok, status: res.status };
   } catch(e) {
@@ -1382,27 +1392,25 @@ async function syncBracketToSheet() {
 }
 
 async function postToSheet(payload) {
-  // Write prediction to Supabase predictions table
   const row = {
-    name:       payload.name        || null,
-    type:       payload.type        || 'match',
-    match_id:   payload.matchId     || null,
-    home_score: payload.homeScore !== undefined ? parseInt(payload.homeScore) : null,
-    away_score: payload.awayScore !== undefined ? parseInt(payload.awayScore) : null,
-    winner:     payload.winner      || null,
-    runner_up:  payload.runnerUp    || null,
-    top_scorer: payload.topScorer   || null,
-    surprise:   payload.surprise    || null,
-    sf1:        payload.sf1         || null,
-    sf2:        payload.sf2         || null,
-    sf3:        payload.sf3         || null,
-    sf4:        payload.sf4         || null,
+    name:       payload.name          || '',
+    type:       payload.type          || 'match',
+    match_id:   payload.matchId       || '',   // must be '' not null for upsert conflict key
+    home_score: (payload.homeScore !== undefined && payload.homeScore !== '') ? parseInt(payload.homeScore) : null,
+    away_score: (payload.awayScore !== undefined && payload.awayScore !== '') ? parseInt(payload.awayScore) : null,
+    winner:     payload.winner        || null,
+    runner_up:  payload.runnerUp      || null,
+    top_scorer: payload.topScorer     || null,
+    surprise:   payload.surprise      || null,
+    sf1: payload.sf1 || null,
+    sf2: payload.sf2 || null,
+    sf3: payload.sf3 || null,
+    sf4: payload.sf4 || null,
   };
-  // Upsert on name + type + match_id (so re-submitting updates rather than duplicates)
   await sbFetch('predictions?on_conflict=name,type,match_id', {
-    method: 'POST',
+    method:  'POST',
     headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-    body: row,
+    body:    row,
   });
 }
 
@@ -2173,13 +2181,20 @@ async function submitPredictions(){
     }
   });
 
-  // Post specials row
-  await postToSheet({name,type:'specials',...sp,timestamp:new Date().toISOString()});
-  // Post one row per match
-  Object.entries(matchPreds).forEach(([matchId,pred])=>{
-    const m=ALL_MATCHES.find(x=>x.id===matchId);
-    postToSheet({name,type:'match',matchId,homeTeam:m?m.home:'',awayTeam:m?m.away:'',homeScore:pred.home,awayScore:pred.away,timestamp:new Date().toISOString()});
+  // Build all rows and write in parallel
+  const writes = [];
+  writes.push(postToSheet({name, type:'specials', matchId:'', ...sp}));
+  Object.entries(matchPreds).forEach(([matchId, pred]) => {
+    const m = ALL_MATCHES.find(x => x.id === matchId);
+    writes.push(postToSheet({
+      name, type:'match', matchId,
+      homeTeam:  m ? m.home : '',
+      awayTeam:  m ? m.away : '',
+      homeScore: pred.home,
+      awayScore: pred.away,
+    }));
   });
+  await Promise.all(writes);
 
   document.getElementById('submitted-badge').classList.add('show');
   const note=document.getElementById('submit-note');
@@ -2204,9 +2219,12 @@ async function saveResult(){
   const id=document.getElementById('admin-match-select').value;
   const h=document.getElementById('res-score-home').value,a=document.getElementById('res-score-away').value;
   if(!id||h===''||a===''){showToast('Enter both scores',true);return;}
-  results[id]={home:parseInt(h),away:parseInt(a)};
-  renderMatches();renderDashboard();
-  showToast('Result saved — scores updated');
+  const hInt=parseInt(h), aInt=parseInt(a);
+  results[id]={home:hInt,away:aInt};
+  await syncResultToSheet(id, hInt, aInt);
+  renderMatches();
+  if(document.getElementById('tab-dashboard').style.display!=='none') renderDashboard();
+  showToast('Result saved & synced ✓');
   document.getElementById('result-entry-area').style.display='none';
   document.getElementById('admin-match-select').value='';
 }
@@ -2766,10 +2784,21 @@ function renderKoBracketAdmin() {
   const entryArea = document.createElement('div');
   entryArea.id = 'ko-entry-area';
   entryArea.style.display = 'none';
+
+  // Build team options from TEAMS array
+  const teamOpts = '<option value="">— select team —</option>' +
+    TEAMS.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+
   entryArea.innerHTML =
     `<div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <div class="field-group"><div class="field-label">Home team name</div><input class="portal-input" id="ko-team-home" placeholder="Team name or TBD…"></div>
-      <div class="field-group"><div class="field-label">Away team name</div><input class="portal-input" id="ko-team-away" placeholder="Team name or TBD…"></div>
+      <div class="field-group">
+        <div class="field-label">Home team</div>
+        <select class="portal-input" id="ko-team-home">${teamOpts}</select>
+      </div>
+      <div class="field-group">
+        <div class="field-label">Away team</div>
+        <select class="portal-input" id="ko-team-away">${teamOpts}</select>
+      </div>
     </div>
     <div class="res-grid">
       <div class="res-team" id="ko-home"></div>
