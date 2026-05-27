@@ -1033,251 +1033,71 @@ select.portal-input option{background:#fff;}
         </div>
       </div>
 
-      <!-- GOOGLE SHEETS -->
+      <!-- SUPABASE CONFIG -->
       <div class="admin-card">
-        <div class="admin-title">Google Sheets integration</div>
-        <div class="admin-sub">Submissions post to your locked Google Sheet via Apps Script. <a href="#" onclick="toggleInstr();return false;" style="color:var(--teal-mid);">Setup guide →</a></div>
-        <div class="input-row">
-          <input class="portal-input" id="sheet-url" style="flex:1;min-width:240px;" placeholder="https://script.google.com/macros/s/…/exec">
-          <button class="btn-secondary" onclick="saveSheetUrl()">Save URL</button>
+        <div class="admin-title">Database connection</div>
+        <div class="admin-sub">Powered by Supabase. Connection status shown below. To update credentials, edit <code style="font-family:'DM Mono',monospace;background:var(--page);padding:1px 6px;border-radius:4px;">SUPABASE_URL</code> and <code style="font-family:'DM Mono',monospace;background:var(--page);padding:1px 6px;border-radius:4px;">SUPABASE_ANON_KEY</code> at the top of the HTML file and re-upload to GitHub.</div>
+        <div id="supabase-status" style="font-size:12px;padding:8px 0;"></div>
+        <button class="btn-secondary" onclick="checkSupabaseConnection()">Test connection</button>
+        <div style="margin-top:14px;">
+          <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Database setup SQL</div>
+          <div style="font-size:11px;color:var(--t2);margin-bottom:8px;">Run this once in <strong>Supabase → SQL Editor</strong> to create all required tables:</div>
+          <pre class="code-block" style="font-size:10px;">-- Run in Supabase SQL Editor → New query
+
+create table if not exists config (
+  key   text primary key,
+  value text
+);
+
+create table if not exists participants (
+  name text primary key,
+  fn   text,
+  pin  text
+);
+
+create table if not exists results (
+  match_id   text primary key,
+  home_score integer,
+  away_score integer
+);
+
+create table if not exists bracket (
+  match_id   text primary key,
+  home_name  text,
+  away_name  text,
+  home_score integer,
+  away_score integer
+);
+
+create table if not exists predictions (
+  name        text,
+  type        text,
+  match_id    text default '',
+  home_score  integer,
+  away_score  integer,
+  winner      text,
+  runner_up   text,
+  top_scorer  text,
+  surprise    text,
+  sf1 text, sf2 text, sf3 text, sf4 text,
+  submitted_at timestamptz default now(),
+  primary key (name, type, match_id)
+);
+
+-- Row Level Security — allow public read/write via anon key
+alter table config       enable row level security;
+alter table participants enable row level security;
+alter table results      enable row level security;
+alter table bracket      enable row level security;
+alter table predictions  enable row level security;
+
+create policy "anon all" on config       for all using (true) with check (true);
+create policy "anon all" on participants for all using (true) with check (true);
+create policy "anon all" on results      for all using (true) with check (true);
+create policy "anon all" on bracket      for all using (true) with check (true);
+create policy "anon all" on predictions  for all using (true) with check (true);</pre>
         </div>
-        <div id="sheet-url-status" style="font-size:11px;color:var(--t3);margin-top:7px;"></div>
-        <div class="instr-body" id="instr-body" style="margin-top:14px;display:none;">
-          <div style="font-size:11px;color:var(--t2);line-height:1.7;"><strong style="color:var(--teal-mid);">Step 1</strong> — Open your Google Sheet. The script will <strong>auto-create</strong> three tabs: <code style="font-size:10px;background:var(--page);padding:1px 5px;border-radius:3px;">Predictions</code>, <code style="font-size:10px;background:var(--page);padding:1px 5px;border-radius:3px;">Results</code>, <code style="font-size:10px;background:var(--page);padding:1px 5px;border-radius:3px;">Config</code> — no manual setup needed.</div>
-          <div style="font-size:11px;color:var(--t2);line-height:1.7;margin-top:8px;"><strong style="color:var(--teal-mid);">Step 2</strong> — Extensions → Apps Script → replace ALL existing code with below → <strong>Save</strong> → Deploy → <strong>New deployment</strong> → Web app → Execute as: Me, Access: Anyone → Deploy → copy URL. If you already have a deployment, create a new one (don't edit existing):</div>
-          <pre class="code-block">// ══════════════════════════════════════════════════════
-//  Coevolve WC2026 Predictor — Apps Script
-//  ONE sheet tab: "Predictions" — all data stored here
-//  with a Type column to distinguish row types.
-//
-//  Deploy: Web App · Execute as Me · Access: Anyone
-//  NEVER click Run — use testRun() or the deployed URL
-// ══════════════════════════════════════════════════════
 
-function doGet(e) {
-  try {
-    var p = (e && e.parameter) ? e.parameter : {};
-    var action   = p.action   || 'writePrediction';
-    var callback = p.callback || '';
-
-    var result;
-    switch(action) {
-      case 'getConfig':      result = getConfig();      break;
-      case 'getResults':     result = getResults();     break;
-      case 'writeConfig':    result = writeConfig(p);   break;
-      case 'writeResult':    result = writeResult(p);   break;
-      case 'writeBracket':   result = writeBracket(p);  break;
-      case 'writePrediction':
-      default:               result = writePrediction(p); break;
-    }
-
-    var json = JSON.stringify(result);
-
-    if(callback) {
-      return ContentService
-        .createTextOutput(callback + '(' + json + ');')
-        .setMimeType(ContentService.MimeType.JAVASCRIPT);
-    }
-    return ContentService
-      .createTextOutput(json)
-      .setMimeType(ContentService.MimeType.JSON);
-
-  } catch(err) {
-    var msg = JSON.stringify({status:'error', message: String(err)});
-    var cb  = (e && e.parameter && e.parameter.callback) ? e.parameter.callback : '';
-    return ContentService
-      .createTextOutput(cb ? cb + '(' + msg + ');' : msg)
-      .setMimeType(cb ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON);
-  }
-}
-
-// ── SHEET — always "Predictions" ──
-function sheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName('Predictions');
-  if(!sh) sh = ss.insertSheet('Predictions');
-  return sh;
-}
-
-// ── READ CONFIG ──
-// Returns phases, participants+PINs+functions, specialsActual, adminPin
-function getConfig() {
-  var rows = sheet().getDataRange().getValues();
-  var out = {
-    status: 'ok',
-    phases: { specials: false, groupStage: false },
-    participants: [],
-    specialsActual: {},
-    adminPin: '2026'
-  };
-
-  rows.forEach(function(r) {
-    switch(String(r[0])) {
-      case 'config_phases':
-        try {
-          var ph = JSON.parse(r[1]);
-          out.phases.specials   = ph.specials   === true || ph.specials   === 'true';
-          out.phases.groupStage = ph.groupStage === true || ph.groupStage === 'true';
-        } catch(e) {}
-        break;
-      case 'config_adminPin':
-        out.adminPin = String(r[1] || '2026');
-        break;
-      case 'config_specialsActual':
-        try { out.specialsActual = JSON.parse(r[1]); } catch(e) {}
-        break;
-      case 'config_participant':
-        // r[1]=name, r[2]=fn, r[3]=pin
-        if(r[1]) out.participants.push({ name:String(r[1]), fn:String(r[2]||''), pin:String(r[3]||'') });
-        break;
-    }
-  });
-  return out;
-}
-
-// ── READ RESULTS ──
-function getResults() {
-  var rows = sheet().getDataRange().getValues();
-  var out  = { status:'ok', results:{}, bracketResults:{}, bracketTeams:{} };
-
-  rows.forEach(function(r) {
-    switch(String(r[0])) {
-      case 'result':
-        out.results[r[1]] = { home: Number(r[2]), away: Number(r[3]) };
-        break;
-      case 'bracket':
-        out.bracketResults[r[1]] = { home: Number(r[2]), away: Number(r[3]) };
-        break;
-      case 'bracketTeam':
-        out.bracketTeams[r[1]] = { home: String(r[2]||''), away: String(r[3]||'') };
-        break;
-    }
-  });
-  return out;
-}
-
-// ── WRITE CONFIG ──
-// Deletes all config_* rows then rewrites them
-function writeConfig(p) {
-  var sh   = sheet();
-  var rows = sh.getDataRange().getValues();
-
-  // Delete old config rows (in reverse to keep indexes valid)
-  for(var i = rows.length - 1; i >= 0; i--) {
-    var t = String(rows[i][0]);
-    if(t === 'config_phases' || t === 'config_adminPin' ||
-       t === 'config_specialsActual' || t === 'config_participant') {
-      sh.deleteRow(i + 1);
-    }
-  }
-
-  // Append fresh config rows
-  try { var ph = JSON.parse(p.phases || '{}');
-        sh.appendRow(['config_phases', JSON.stringify(ph)]); } catch(e) {}
-
-  if(p.adminPin)
-    sh.appendRow(['config_adminPin', String(p.adminPin)]);
-
-  if(p.specialsActual)
-    sh.appendRow(['config_specialsActual', String(p.specialsActual)]);
-
-  try {
-    var parts = JSON.parse(p.participants || '[]');
-    parts.forEach(function(pt) {
-      sh.appendRow(['config_participant', pt.name||'', pt.fn||'', pt.pin||'']);
-    });
-  } catch(e) {}
-
-  return { status:'ok' };
-}
-
-// ── WRITE RESULT ──
-function writeResult(p) {
-  var sh   = sheet();
-  var rows = sh.getDataRange().getValues();
-
-  for(var i = 0; i < rows.length; i++) {
-    if(rows[i][0] === 'result' && String(rows[i][1]) === String(p.matchId)) {
-      sh.getRange(i + 1, 3, 1, 2).setValues([[Number(p.home), Number(p.away)]]);
-      return { status:'ok', updated:true };
-    }
-  }
-  sh.appendRow(['result', p.matchId, Number(p.home), Number(p.away)]);
-  return { status:'ok', inserted:true };
-}
-
-// ── WRITE BRACKET ──
-function writeBracket(p) {
-  var sh   = sheet();
-  var rows = sh.getDataRange().getValues();
-
-  for(var i = rows.length - 1; i >= 0; i--) {
-    var t = String(rows[i][0]);
-    if(t === 'bracket' || t === 'bracketTeam') sh.deleteRow(i + 1);
-  }
-
-  try {
-    var br = JSON.parse(p.bracketResults || '{}');
-    Object.keys(br).forEach(function(id) {
-      sh.appendRow(['bracket', id, Number(br[id].home), Number(br[id].away)]);
-    });
-  } catch(e) {}
-
-  try {
-    var bt = JSON.parse(p.bracketTeams || '{}');
-    Object.keys(bt).forEach(function(id) {
-      sh.appendRow(['bracketTeam', id, String(bt[id].home||''), String(bt[id].away||'')]);
-    });
-  } catch(e) {}
-
-  return { status:'ok' };
-}
-
-// ── WRITE PREDICTION ──
-function writePrediction(p) {
-  if(!p.name) return { status:'ignored', reason:'no name' };
-
-  sheet().appendRow([
-    new Date().toISOString(),
-    p.name||'',  p.type||'', p.matchId||'',
-    p.homeTeam||'', p.awayTeam||'',
-    p.homeScore||'', p.awayScore||'',
-    p.winner||'', p.runnerUp||'', p.topScorer||'',
-    p.surprise||'', p.sf1||'', p.sf2||'', p.sf3||'', p.sf4||''
-  ]);
-  return { status:'ok' };
-}
-
-// ── TEST (run this from editor, not doGet directly) ──
-function testRun() {
-  Logger.log('--- testRun ---');
-
-  // Test write config
-  var configResult = writeConfig({
-    phases: '{"specials":true,"groupStage":false}',
-    adminPin: '2026',
-    specialsActual: '{}',
-    participants: '[{"name":"Bibhushan Gautam","fn":"di","pin":"1234"}]'
-  });
-  Logger.log('writeConfig: ' + JSON.stringify(configResult));
-
-  // Test read config
-  var cfg = getConfig();
-  Logger.log('getConfig: ' + JSON.stringify(cfg));
-
-  // Test write result
-  var res = writeResult({ matchId:'M001', home:'2', away:'1' });
-  Logger.log('writeResult: ' + JSON.stringify(res));
-
-  // Test read results
-  var results = getResults();
-  Logger.log('getResults: ' + JSON.stringify(results));
-}
-</pre>
-          <div style="font-size:11px;color:var(--t2);"><strong style="color:var(--teal-mid);">Step 3</strong> — Share → Viewer only. Data → Protected Ranges → lock all. Paste URL above.</div>
-          <div style="font-size:11px;color:var(--amber-dk);margin-top:8px;background:var(--amber-bg);padding:8px 10px;border-radius:6px;">⚠️ The <strong>Run</strong> button in the Apps Script editor will always fail with a parameter error — that's normal. Only test via the deployed web app URL. Use <code>testRun()</code> to test from the editor instead.</div>
-        </div>
-        <button class="btn-secondary" style="margin-top:10px;" onclick="toggleInstr()" id="instr-toggle">Show setup guide</button>
       </div>
 
       <!-- ENTER RESULTS -->
@@ -1373,137 +1193,248 @@ function testRun() {
 </div>
 <script>
 // ════════════════════════════════════════════════════════════
-//  SHEET SYNC LAYER
-//  All reads and writes go through here.
-//  The Apps Script URL is the single source of truth.
+//  SUPABASE BACKEND LAYER
+//  Replace SUPABASE_URL and SUPABASE_ANON_KEY with your values
+//  from Project Settings → API in your Supabase dashboard
 // ════════════════════════════════════════════════════════════
 
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzz0WZOAkcB7j-V6uGlkxmh7XkJcriSyYgcsL3ArZc-C2k3ct8PcGe3JbwFUxUF5bG6Fg/exec';
+const SUPABASE_URL      = https://hthzwxxlryrttwiiksru.supabase.co;      // e.g. https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = sb_publishable_cM_2MbnrQpuhKSqhy0Rb-g_f6ayterV; // long JWT string from API settings
 
-// ── CALL SHEET ──
-// All sheet communication goes through this one function.
-// action: 'read' or 'write'
-// data: object of params to send
-async function callSheet(data) {
+// ── LOW-LEVEL FETCH WRAPPER ──
+async function sbFetch(path, opts = {}) {
+  const url = SUPABASE_URL + '/rest/v1/' + path;
+  const headers = {
+    'apikey':        SUPABASE_ANON_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+    'Content-Type':  'application/json',
+    'Prefer':        opts.prefer || 'return=minimal',
+  };
   try {
-    const params = new URLSearchParams(data).toString();
-    const res = await fetch(SHEET_URL + '?' + params, { method: 'GET', mode: 'no-cors' });
-    // no-cors means we can't read the response body - fire and forget
-    return { ok: true };
+    const res = await fetch(url, {
+      method:  opts.method  || 'GET',
+      headers: { ...headers, ...(opts.headers || {}) },
+      body:    opts.body    ? JSON.stringify(opts.body) : undefined,
+    });
+    if(opts.method === 'GET' || opts.prefer === 'return=representation') {
+      const text = await res.text();
+      return text ? JSON.parse(text) : [];
+    }
+    return { ok: res.ok, status: res.status };
   } catch(e) {
-    console.warn('Sheet call failed:', e);
-    return { ok: false, error: e.message };
+    console.error('Supabase fetch error:', path, e);
+    return null;
   }
 }
 
-// ── READ FROM SHEET ──
-// Uses a separate readable fetch (needs CORS-safe endpoint)
-// We use a JSONP-style approach via a script tag to get around CORS
-function readFromSheet(action, callback) {
-  const callbackName = '_sheetCb_' + Date.now();
-  window[callbackName] = function(data) {
-    delete window[callbackName];
-    const el = document.getElementById('_sheet_script_' + callbackName);
-    if(el) el.remove();
-    callback(null, data);
-  };
-  const script = document.createElement('script');
-  script.id = '_sheet_script_' + callbackName;
-  script.src = SHEET_URL + '?action=' + action + '&callback=' + callbackName;
-  script.onerror = () => {
-    delete window[callbackName];
-    script.remove();
-    callback(new Error('Sheet read failed'));
-  };
-  document.head.appendChild(script);
+// ── UPSERT HELPER ──
+// Inserts or updates based on conflict column
+async function sbUpsert(table, data, onConflict = 'id') {
+  return sbFetch(table + '?on_conflict=' + onConflict, {
+    method: 'POST',
+    prefer: 'return=minimal',
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: data,
+  });
 }
 
-// ── APP INIT — load all state from sheet ──
-function initApp() {
-  showLoadingOverlay('Loading tournament data…');
+// ── DELETE HELPER ──
+async function sbDelete(table, filter) {
+  return sbFetch(table + '?' + filter, { method: 'DELETE' });
+}
 
-  readFromSheet('getConfig', (err, data) => {
-    if(err || !data) {
-      console.warn('Could not load config from sheet, using local fallbacks');
-      hideLoadingOverlay();
-      finishInit();
-      return;
+// ════════════════════════════════════════════════════════════
+//  READ — load all state on app open
+// ════════════════════════════════════════════════════════════
+
+async function loadAllFromSupabase() {
+  try {
+    // Parallel fetch everything
+    const [cfgRows, participantRows, resultRows, bracketRows, predRows] = await Promise.all([
+      sbFetch('config?select=key,value'),
+      sbFetch('participants?select=name,fn,pin&order=name'),
+      sbFetch('results?select=match_id,home_score,away_score'),
+      sbFetch('bracket?select=match_id,home_name,away_name,home_score,away_score'),
+      sbFetch('predictions?select=name,type,match_id,home_score,away_score,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
+    ]);
+
+    // Apply config
+    if(Array.isArray(cfgRows)) {
+      cfgRows.forEach(row => {
+        if(row.key === 'phases')        { try { const p=JSON.parse(row.value); PHASES.specials=p.specials===true||p.specials==='true'; PHASES.groupStage=p.groupStage===true||p.groupStage==='true'; } catch(e){} }
+        if(row.key === 'adminPin')      { localStorage.setItem('admin_pin', row.value); }
+        if(row.key === 'specialsActual'){ try { Object.assign(specialsActual, JSON.parse(row.value)); } catch(e){} }
+      });
     }
 
-    // Apply config from sheet
-    if(data.phases) {
-      PHASES.specials   = data.phases.specials   ?? PHASES.specials;
-      PHASES.groupStage = data.phases.groupStage ?? PHASES.groupStage;
-    }
-    if(data.participants && Array.isArray(data.participants)) {
-      participants = data.participants.map(p => p.name);
-      data.participants.forEach(p => {
+    // Apply participants + PINs
+    if(Array.isArray(participantRows) && participantRows.length > 0) {
+      participants = participantRows.map(p => p.name);
+      participantRows.forEach(p => {
         if(p.fn)  participantFunctions[p.name] = p.fn;
         if(p.pin) participantPins[p.name] = p.pin;
       });
     }
-    if(data.specialsActual) {
-      specialsActual = data.specialsActual;
-    }
-    if(data.adminPin) {
-      // Store admin PIN from sheet locally for this session
-      localStorage.setItem('admin_pin', data.adminPin);
+
+    // Apply results
+    if(Array.isArray(resultRows)) {
+      resultRows.forEach(r => {
+        results[r.match_id] = { home: r.home_score, away: r.away_score };
+      });
     }
 
-    hideLoadingOverlay();
-    finishInit();
-  });
+    // Apply bracket
+    if(Array.isArray(bracketRows)) {
+      bracketRows.forEach(r => {
+        if(r.home_score !== null && r.away_score !== null) {
+          bracketResults[r.match_id] = { home: r.home_score, away: r.away_score };
+        }
+        if(r.home_name || r.away_name) {
+          bracketTeams[r.match_id] = { home: r.home_name || '', away: r.away_name || '' };
+        }
+      });
+    }
 
-  // Load match results separately (can be large)
-  readFromSheet('getResults', (err, data) => {
-    if(err || !data) return;
-    if(data.results) {
-      Object.assign(results, data.results);
+    // Apply predictions (rebuild in-memory predictions object)
+    if(Array.isArray(predRows)) {
+      predRows.forEach(row => {
+        if(!predictions[row.name]) predictions[row.name] = {};
+        if(row.type === 'specials') {
+          predictions[row.name].specials = {
+            winner:    row.winner    || '',
+            runnerUp:  row.runner_up || '',
+            topScorer: row.top_scorer|| '',
+            surprise:  row.surprise  || '',
+            sf1: row.sf1||'', sf2: row.sf2||'', sf3: row.sf3||'', sf4: row.sf4||''
+          };
+        } else if(row.type === 'match' && row.match_id) {
+          predictions[row.name][row.match_id] = {
+            home: row.home_score,
+            away: row.away_score
+          };
+        }
+      });
     }
-    if(data.bracketResults) {
-      Object.assign(bracketResults, data.bracketResults);
-    }
-    if(data.bracketTeams) {
-      Object.assign(bracketTeams, data.bracketTeams);
-    }
-    // Re-render if already showing
-    if(document.getElementById('tab-dashboard').style.display !== 'none') renderDashboard();
-    if(document.getElementById('tab-bracket').style.display !== 'none') renderBracket();
-    renderMatches();
-  });
+
+    return true;
+  } catch(e) {
+    console.error('loadAllFromSupabase failed:', e);
+    return false;
+  }
 }
 
-// ── WRITE CONFIG TO SHEET (admin only) ──
-function syncConfigToSheet() {
-  const configData = {
-    action: 'writeConfig',
-    phases: JSON.stringify(PHASES),
-    participants: JSON.stringify(participants.map(name => ({
+// ════════════════════════════════════════════════════════════
+//  WRITES — called on every admin action and user submission
+// ════════════════════════════════════════════════════════════
+
+async function syncConfigToSheet() {
+  const adminPin = localStorage.getItem('admin_pin') || '2026';
+  await Promise.all([
+    sbUpsert('config', { key: 'phases',         value: JSON.stringify(PHASES) },         'key'),
+    sbUpsert('config', { key: 'adminPin',        value: adminPin },                       'key'),
+    sbUpsert('config', { key: 'specialsActual',  value: JSON.stringify(specialsActual) }, 'key'),
+  ]);
+}
+
+async function syncParticipantsToSupabase() {
+  // Delete all existing participants then reinsert
+  await sbDelete('participants', 'name=neq.null');
+  if(participants.length > 0) {
+    const rows = participants.map(name => ({
       name,
-      fn: participantFunctions[name] || '',
-      pin: participantPins[name] || ''
-    }))),
-    specialsActual: JSON.stringify(specialsActual),
-    adminPin: localStorage.getItem('admin_pin') || '2026'
+      fn:  participantFunctions[name] || null,
+      pin: participantPins[name]       || null,
+    }));
+    await sbFetch('participants', { method: 'POST', body: rows, prefer: 'return=minimal' });
+  }
+}
+
+// Wrap syncConfigToSheet to also sync participants
+async function syncAllConfig() {
+  await Promise.all([syncConfigToSheet(), syncParticipantsToSupabase()]);
+}
+
+function savePhases() { syncAllConfig(); }
+function saveParticipantPins() { syncAllConfig(); }
+function saveBracketResults() { syncBracketToSheet(); }
+function saveBracketTeams() { syncBracketToSheet(); }
+
+async function syncResultToSheet(matchId, home, away) {
+  await sbUpsert('results', { match_id: matchId, home_score: home, away_score: away }, 'match_id');
+}
+
+async function syncBracketToSheet() {
+  const rows = [];
+  const allIds = new Set([...Object.keys(bracketResults), ...Object.keys(bracketTeams)]);
+  allIds.forEach(id => {
+    rows.push({
+      match_id:   id,
+      home_name:  bracketTeams[id]?.home   || null,
+      away_name:  bracketTeams[id]?.away   || null,
+      home_score: bracketResults[id]?.home ?? null,
+      away_score: bracketResults[id]?.away ?? null,
+    });
+  });
+  if(rows.length > 0) {
+    await sbDelete('bracket', 'match_id=neq.null');
+    await sbFetch('bracket', { method: 'POST', body: rows, prefer: 'return=minimal' });
+  }
+}
+
+async function postToSheet(payload) {
+  // Write prediction to Supabase predictions table
+  const row = {
+    name:       payload.name        || null,
+    type:       payload.type        || 'match',
+    match_id:   payload.matchId     || null,
+    home_score: payload.homeScore !== undefined ? parseInt(payload.homeScore) : null,
+    away_score: payload.awayScore !== undefined ? parseInt(payload.awayScore) : null,
+    winner:     payload.winner      || null,
+    runner_up:  payload.runnerUp    || null,
+    top_scorer: payload.topScorer   || null,
+    surprise:   payload.surprise    || null,
+    sf1:        payload.sf1         || null,
+    sf2:        payload.sf2         || null,
+    sf3:        payload.sf3         || null,
+    sf4:        payload.sf4         || null,
   };
-  callSheet(configData);
-}
-
-// ── WRITE RESULT TO SHEET ──
-function syncResultToSheet(matchId, home, away) {
-  callSheet({
-    action: 'writeResult',
-    matchId, home, away
+  // Upsert on name + type + match_id (so re-submitting updates rather than duplicates)
+  await sbFetch('predictions?on_conflict=name,type,match_id', {
+    method: 'POST',
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: row,
   });
 }
 
-// ── WRITE BRACKET RESULT TO SHEET ──
-function syncBracketToSheet() {
-  callSheet({
-    action: 'writeBracket',
-    bracketResults: JSON.stringify(bracketResults),
-    bracketTeams:   JSON.stringify(bracketTeams)
-  });
+// ════════════════════════════════════════════════════════════
+//  INIT — called on page load
+// ════════════════════════════════════════════════════════════
+
+async function initApp() {
+  showLoadingOverlay('Connecting to database…');
+
+  // Check credentials are set
+  if(SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+    hideLoadingOverlay();
+    showConfigWarning();
+    finishInit();
+    return;
+  }
+
+  const ok = await loadAllFromSupabase();
+  if(!ok) {
+    console.warn('Supabase load failed — running with defaults');
+  }
+
+  hideLoadingOverlay();
+  finishInit();
+}
+
+function showConfigWarning() {
+  const w = document.createElement('div');
+  w.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#E6BE2F;color:#1F262F;padding:10px 20px;font-size:13px;font-weight:700;text-align:center;z-index:9998;';
+  w.textContent = '⚠️  Supabase not configured — open the HTML file and set SUPABASE_URL and SUPABASE_ANON_KEY';
+  document.body.prepend(w);
 }
 
 // ── LOADING OVERLAY ──
@@ -1512,18 +1443,23 @@ function showLoadingOverlay(msg) {
   if(!ov) {
     ov = document.createElement('div');
     ov.id = 'loading-overlay';
-    ov.style.cssText = 'position:fixed;inset:0;background:rgba(247,248,250,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px;';
-    ov.innerHTML = '<div style="width:36px;height:36px;border:3px solid #ebecf0;border-top-color:#25C4B3;border-radius:50%;animation:spin .8s linear infinite;"></div><div id="loading-msg" style="font-family:Open Sans,sans-serif;font-size:14px;font-weight:600;color:#4e5d78;"></div>';
+    ov.style.cssText = [
+      'position:fixed','inset:0','background:rgba(247,248,250,.97)',
+      'display:flex','flex-direction:column','align-items:center',
+      'justify-content:center','z-index:9999','gap:16px'
+    ].join(';');
+    ov.innerHTML = `
+      <svg width="48" height="48" viewBox="0 0 100 100" fill="none">
+        <path d="M76.3131 54.829C75.9126 56.522 75.3314 58.0597 74.5754 59.439C73.8171 60.8232 72.8386 61.9365 71.6349 62.781C70.4324 63.63 69.0291 64.0512 67.4254 64.0512C65.9094 64.0512 64.4849 63.63 63.1481 62.781C61.8116 61.9365 60.5631 60.843 59.4059 59.5072C58.2471 58.17 57.2009 56.6567 56.2654 54.963C55.3301 53.271 54.4611 51.533 53.6589 49.7497C55.3506 45.4735 57.2449 41.998 59.3389 39.3247C61.4321 36.6507 64.0376 35.3152 67.1579 35.3152C69.8306 35.3152 72.1241 36.5647 74.0414 39.0575C75.9559 41.5527 76.9146 45.0725 76.9146 49.6167C76.9146 51.4002 76.7144 53.1377 76.3131 54.829ZM79.1871 34.7137C77.6706 32.9772 75.8896 31.6397 73.8404 30.7045C71.7901 29.7692 69.6081 29.3007 67.2916 29.3007C63.1931 29.3007 59.7616 30.3695 56.9996 32.5087C55.6829 33.5275 54.4689 34.8237 53.3551 36.3895C52.1859 38.0642 50.0436 42.5217 50.0436 42.5217C48.8476 45.0247 45.3316 52.6832 44.5041 54.1612C43.6371 55.7077 42.8329 57.3015 41.7629 58.7715C40.6946 60.2415 39.4454 61.491 38.0216 62.5142C36.5946 63.5395 34.9906 64.0512 33.2096 64.0512C30.6246 64.0512 28.3981 62.8042 26.5271 60.309C24.6561 57.8152 23.7209 54.294 23.7209 49.7497C23.7209 47.9687 23.9416 46.2077 24.3886 44.4697C24.8334 42.733 25.4784 41.1965 26.3266 39.8597C27.1716 38.523 28.1979 37.4545 29.4014 36.6507C30.6039 35.8502 31.9604 35.4492 33.4771 35.4492C35.5764 35.5662 36.9691 36.0627 38.3229 36.9397C39.8836 37.953 41.1546 39.037 42.1374 40.191C43.5531 39.556 44.0159 38.8037 44.4791 37.9382C44.9406 37.0695 45.1721 36.2905 45.1721 35.5965C45.1721 34.902 44.8546 34.1807 44.2186 33.4282C43.5819 32.6777 42.6714 31.9695 41.4876 31.3037C40.3081 30.6432 38.9011 30.096 37.2651 29.6637C35.9744 29.331 34.6221 29.167 33.2096 29.167C28.3079 29.167 24.2759 30.928 21.1139 34.4467C17.9501 37.9677 16.3691 43.0677 16.3691 49.7497C16.3691 52.4225 16.7029 55.0077 17.3721 57.502C18.0399 59.9975 19.0866 62.1802 20.5119 64.0512C21.9369 65.9222 23.6971 67.4385 25.7919 68.5947C27.8844 69.7542 30.3569 70.3325 33.2096 70.3325C36.1504 70.3325 39.1339 69.3762 42.1641 67.4592C45.1926 65.5435 47.8656 62.0925 50.1841 57.1007C52.5896 61.9127 55.2394 65.3202 58.1359 67.3245C61.0309 69.331 64.1716 70.3325 67.5589 70.3325C70.4089 70.3325 72.8819 69.7102 74.9766 68.4607C77.0689 67.215 78.7864 65.5875 80.1236 63.5835C81.4591 61.579 82.4619 59.353 83.1296 56.8997C83.7976 54.4502 84.1321 52.068 84.1321 49.7497C84.1321 46.5415 83.6851 43.668 82.7956 41.1292C81.9044 38.59 80.7019 36.4517 79.1871 34.7137Z" fill="#25C4B3"/>
+      </svg>
+      <div id="loading-msg" style="font-family:'Open Sans',sans-serif;font-size:15px;font-weight:700;color:#323B4B;"></div>
+      <div id="loading-sub" style="font-size:12px;color:#8A94A6;font-family:'Open Sans',sans-serif;"></div>`;
     document.body.appendChild(ov);
-    // Add spin keyframe if not present
-    if(!document.getElementById('spin-style')) {
-      const st = document.createElement('style');
-      st.id = 'spin-style';
-      st.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
-      document.head.appendChild(st);
-    }
   }
-  document.getElementById('loading-msg').textContent = msg || 'Loading…';
+  const msgEl = document.getElementById('loading-msg');
+  const subEl = document.getElementById('loading-sub');
+  if(msgEl) msgEl.textContent = msg || 'Loading…';
+  if(subEl) subEl.textContent = '';
   ov.style.display = 'flex';
 }
 
@@ -1715,11 +1651,11 @@ let results = {};                  // loaded from sheet Results tab
 let specialsActual   = {};
 let activeGroupFilter = 'all';
 
-const PHASES = { specials: false, groupStage: false }; // loaded from sheet
+const PHASES = { specials: false, groupStage: false };
 
-function savePhases() { syncConfigToSheet(); }
+function savePhases() { syncAllConfig(); }
 
-function saveParticipantPins() { syncConfigToSheet(); }
+function saveParticipantPins() { syncAllConfig(); }
 
 // ── USER TIMEZONE ──
 /* ── FILTER LOGIC ── */
@@ -2178,9 +2114,7 @@ function saveSpecialsResults() {
     sf3:document.getElementById('actual-sf3').value,
     sf4:document.getElementById('actual-sf4').value,
   };
-  localStorage.setItem('specialsActual', JSON.stringify(specialsActual));
-  syncConfigToSheet();
-  syncConfigToSheet();
+  syncAllConfig();
   const st=document.getElementById('specials-result-status');
   if(st) st.textContent='✓ Saved — specials are now scored';
   showToast('Special outcomes saved');
@@ -2208,7 +2142,7 @@ function postToSheet(payload) {
   callSheet(payload);
 }
 
-function submitPredictions(){
+async function submitPredictions(){
   const name=document.getElementById('participant-select').value;
   if(!name){showToast('Select your name first',true);return;}
   const sp={
@@ -2236,7 +2170,7 @@ function submitPredictions(){
   });
 
   // Post specials row
-  postToSheet({name,type:'specials',...sp,timestamp:new Date().toISOString()});
+  await postToSheet({name,type:'specials',...sp,timestamp:new Date().toISOString()});
   // Post one row per match
   Object.entries(matchPreds).forEach(([matchId,pred])=>{
     const m=ALL_MATCHES.find(x=>x.id===matchId);
@@ -2260,10 +2194,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     const ex=results[id];document.getElementById('res-score-home').value=ex?ex.home:'';document.getElementById('res-score-away').value=ex?ex.away:'';
     area.style.display='block';
   });
-  if(SHEET_URL)document.getElementById('sheet-url').value=SHEET_URL;
 });
 
-function saveResult(){
+async function saveResult(){
   const id=document.getElementById('admin-match-select').value;
   const h=document.getElementById('res-score-home').value,a=document.getElementById('res-score-away').value;
   if(!id||h===''||a===''){showToast('Enter both scores',true);return;}
@@ -2327,13 +2260,13 @@ function addParticipant(){
   participants.push(name);
   if(fnSel&&fnSel.value) participantFunctions[name]=fnSel.value;
   inp.value=''; if(fnSel) fnSel.value='';
-  renderChips(); renderPinMgmt(); syncConfigToSheet(); showToast(`${name} added & synced`);
+  renderChips(); renderPinMgmt(); syncAllConfig(); showToast(`${name} added & synced`);
 }
 function removeParticipant(name){
   participants=participants.filter(p=>p!==name);
   delete participantFunctions[name];
   delete participantPins[name];
-  saveParticipantPins(); // triggers syncConfigToSheet
+  syncAllConfig();
   renderChips(); renderPinMgmt();
 }
 function toggleInstr(){const b=document.getElementById('instr-body'),t=document.getElementById('instr-toggle');const s=b.style.display!=='none';b.style.display=s?'none':'block';t.textContent=s?'Show setup guide':'Hide setup guide';}
@@ -2686,7 +2619,7 @@ function changeAdminPin() {
   }
 
   localStorage.setItem('admin_pin', newPin);
-  syncConfigToSheet();
+  syncAllConfig();
   syncConfigToSheet(); // sync to sheet so all devices use new PIN
   document.getElementById('new-admin-pin').value = '';
   document.getElementById('confirm-admin-pin').value = '';
@@ -2865,7 +2798,7 @@ function renderKoBracketAdmin() {
   c.appendChild(entryArea);
 }
 
-function saveKoResult() {
+async function saveKoResult() {
   const sel = document.getElementById('ko-match-sel');
   if(!sel) return;
   const id = sel.value;
@@ -2981,6 +2914,37 @@ function applyResults(data) {
   if(data.results)        Object.assign(results,        data.results);
   if(data.bracketResults) Object.assign(bracketResults, data.bracketResults);
   if(data.bracketTeams)   Object.assign(bracketTeams,   data.bracketTeams);
+}
+
+async function checkSupabaseConnection() {
+  const el = document.getElementById('supabase-status');
+  if(el) el.innerHTML = '<span style="color:var(--t3);">Testing…</span>';
+  try {
+    const rows = await sbFetch('config?select=key&limit=1');
+    if(Array.isArray(rows)) {
+      if(el) el.innerHTML = '<span style="color:var(--green-dk);">✓ Connected — database is live</span>';
+      showToast('Supabase connected ✓');
+    } else {
+      throw new Error('Unexpected response');
+    }
+  } catch(e) {
+    if(el) el.innerHTML = '<span style="color:var(--red-dk);">✗ Connection failed — check URL and key</span>';
+    showToast('Connection failed', true);
+  }
+}
+
+async function saveSheetUrl() {
+  // Legacy function — now just tests connection
+  checkSupabaseConnection();
+}
+
+function toggleInstr() {
+  const b = document.getElementById('instr-body');
+  const t = document.getElementById('instr-toggle');
+  if(!b) return;
+  const s = b.style.display !== 'none';
+  b.style.display = s ? 'none' : 'block';
+  if(t) t.textContent = s ? 'Show setup guide' : 'Hide setup guide';
 }
 
 function showToast(msg,isError=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(isError?' error':'');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
