@@ -1045,67 +1045,65 @@ select.portal-input option{background:#fff;}
         <div class="instr-body" id="instr-body" style="margin-top:14px;display:none;">
           <div style="font-size:11px;color:var(--t2);line-height:1.7;"><strong style="color:var(--teal-mid);">Step 1</strong> — Open your Google Sheet. The script will <strong>auto-create</strong> three tabs: <code style="font-size:10px;background:var(--page);padding:1px 5px;border-radius:3px;">Predictions</code>, <code style="font-size:10px;background:var(--page);padding:1px 5px;border-radius:3px;">Results</code>, <code style="font-size:10px;background:var(--page);padding:1px 5px;border-radius:3px;">Config</code> — no manual setup needed.</div>
           <div style="font-size:11px;color:var(--t2);line-height:1.7;margin-top:8px;"><strong style="color:var(--teal-mid);">Step 2</strong> — Extensions → Apps Script → replace ALL existing code with below → <strong>Save</strong> → Deploy → <strong>New deployment</strong> → Web app → Execute as: Me, Access: Anyone → Deploy → copy URL. If you already have a deployment, create a new one (don't edit existing):</div>
-          <pre class="code-block">// ════════════════════════════════════════════════════════════
+          <pre class="code-block">// ══════════════════════════════════════════════════════
 //  Coevolve WC2026 Predictor — Apps Script
-//  Handles all read and write operations for the app.
-//  Deploy as Web App: Execute as Me, Access: Anyone
-// ════════════════════════════════════════════════════════════
+//  ONE sheet tab: "Predictions" — all data stored here
+//  with a Type column to distinguish row types.
+//
+//  Deploy: Web App · Execute as Me · Access: Anyone
+//  NEVER click Run — use testRun() or the deployed URL
+// ══════════════════════════════════════════════════════
 
-var SS = SpreadsheetApp.getActiveSpreadsheet();
-
-// ── MAIN ENTRY POINT ──
 function doGet(e) {
   try {
     var p = (e && e.parameter) ? e.parameter : {};
-    var action = p.action || 'writePrediction';
-    var callback = p.callback; // for JSONP reads
+    var action   = p.action   || 'writePrediction';
+    var callback = p.callback || '';
 
     var result;
-
-    if (action === 'getConfig') {
-      result = getConfig();
-    } else if (action === 'getResults') {
-      result = getResults();
-    } else if (action === 'writeConfig') {
-      result = writeConfig(p);
-    } else if (action === 'writeResult') {
-      result = writeResult(p);
-    } else if (action === 'writeBracket') {
-      result = writeBracket(p);
-    } else if (action === 'writePrediction' || action === 'match' || action === 'specials') {
-      result = writePrediction(p);
-    } else {
-      result = { status: 'ok', message: 'No action taken' };
+    switch(action) {
+      case 'getConfig':      result = getConfig();      break;
+      case 'getResults':     result = getResults();     break;
+      case 'writeConfig':    result = writeConfig(p);   break;
+      case 'writeResult':    result = writeResult(p);   break;
+      case 'writeBracket':   result = writeBracket(p);  break;
+      case 'writePrediction':
+      default:               result = writePrediction(p); break;
     }
 
     var json = JSON.stringify(result);
 
-    // JSONP for reads (allows cross-origin reads from browser)
-    if (callback) {
+    if(callback) {
       return ContentService
-        .createTextOutput(callback + '(' + json + ')')
+        .createTextOutput(callback + '(' + json + ');')
         .setMimeType(ContentService.MimeType.JAVASCRIPT);
     }
-
     return ContentService
       .createTextOutput(json)
       .setMimeType(ContentService.MimeType.JSON);
 
-  } catch (err) {
-    var errJson = JSON.stringify({ status: 'error', message: err.toString() });
+  } catch(err) {
+    var msg = JSON.stringify({status:'error', message: String(err)});
+    var cb  = (e && e.parameter && e.parameter.callback) ? e.parameter.callback : '';
     return ContentService
-      .createTextOutput(p && p.callback ? p.callback + '(' + errJson + ')' : errJson)
-      .setMimeType(p && p.callback ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON);
+      .createTextOutput(cb ? cb + '(' + msg + ');' : msg)
+      .setMimeType(cb ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON);
   }
 }
 
-// ── READ CONFIG ──
-// Returns phases, participants (with PINs and functions), specialsActual, adminPin
-function getConfig() {
-  var sheet = getOrCreateSheet('Config');
-  var data = sheet.getDataRange().getValues();
+// ── SHEET — always "Predictions" ──
+function sheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('Predictions');
+  if(!sh) sh = ss.insertSheet('Predictions');
+  return sh;
+}
 
-  var config = {
+// ── READ CONFIG ──
+// Returns phases, participants+PINs+functions, specialsActual, adminPin
+function getConfig() {
+  var rows = sheet().getDataRange().getValues();
+  var out = {
     status: 'ok',
     phases: { specials: false, groupStage: false },
     participants: [],
@@ -1113,190 +1111,167 @@ function getConfig() {
     adminPin: '2026'
   };
 
-  data.forEach(function(row) {
-    var key = row[0];
-    var val = row[1];
-    if (!key) return;
-
-    if (key === 'phase_specials')   config.phases.specials   = (val === true || val === 'true');
-    if (key === 'phase_groupStage') config.phases.groupStage = (val === true || val === 'true');
-    if (key === 'adminPin')         config.adminPin = String(val || '2026');
-    if (key === 'specialsActual') {
-      try { config.specialsActual = JSON.parse(val); } catch(e) {}
-    }
-    if (key === 'participant') {
-      // row format: participant | name | fn | pin
-      config.participants.push({
-        name: String(row[1] || ''),
-        fn:   String(row[2] || ''),
-        pin:  String(row[3] || '')
-      });
+  rows.forEach(function(r) {
+    switch(String(r[0])) {
+      case 'config_phases':
+        try {
+          var ph = JSON.parse(r[1]);
+          out.phases.specials   = ph.specials   === true || ph.specials   === 'true';
+          out.phases.groupStage = ph.groupStage === true || ph.groupStage === 'true';
+        } catch(e) {}
+        break;
+      case 'config_adminPin':
+        out.adminPin = String(r[1] || '2026');
+        break;
+      case 'config_specialsActual':
+        try { out.specialsActual = JSON.parse(r[1]); } catch(e) {}
+        break;
+      case 'config_participant':
+        // r[1]=name, r[2]=fn, r[3]=pin
+        if(r[1]) out.participants.push({ name:String(r[1]), fn:String(r[2]||''), pin:String(r[3]||'') });
+        break;
     }
   });
-
-  return config;
+  return out;
 }
 
 // ── READ RESULTS ──
 function getResults() {
-  var resultsSheet = getOrCreateSheet('Results');
-  var data = resultsSheet.getDataRange().getValues();
+  var rows = sheet().getDataRange().getValues();
+  var out  = { status:'ok', results:{}, bracketResults:{}, bracketTeams:{} };
 
-  var out = { status: 'ok', results: {}, bracketResults: {}, bracketTeams: {} };
-
-  data.forEach(function(row) {
-    var type = row[0];
-    if (type === 'result') {
-      // matchId | home | away
-      out.results[row[1]] = { home: Number(row[2]), away: Number(row[3]) };
-    } else if (type === 'bracket') {
-      // bracket | matchId | homeScore | awayScore
-      out.bracketResults[row[1]] = { home: Number(row[2]), away: Number(row[3]) };
-    } else if (type === 'bracketTeam') {
-      // bracketTeam | matchId | homeName | awayName
-      out.bracketTeams[row[1]] = { home: String(row[2] || ''), away: String(row[3] || '') };
+  rows.forEach(function(r) {
+    switch(String(r[0])) {
+      case 'result':
+        out.results[r[1]] = { home: Number(r[2]), away: Number(r[3]) };
+        break;
+      case 'bracket':
+        out.bracketResults[r[1]] = { home: Number(r[2]), away: Number(r[3]) };
+        break;
+      case 'bracketTeam':
+        out.bracketTeams[r[1]] = { home: String(r[2]||''), away: String(r[3]||'') };
+        break;
     }
   });
-
   return out;
 }
 
 // ── WRITE CONFIG ──
+// Deletes all config_* rows then rewrites them
 function writeConfig(p) {
-  var sheet = getOrCreateSheet('Config');
-  sheet.clearContents();
+  var sh   = sheet();
+  var rows = sh.getDataRange().getValues();
 
-  var rows = [];
+  // Delete old config rows (in reverse to keep indexes valid)
+  for(var i = rows.length - 1; i >= 0; i--) {
+    var t = String(rows[i][0]);
+    if(t === 'config_phases' || t === 'config_adminPin' ||
+       t === 'config_specialsActual' || t === 'config_participant') {
+      sh.deleteRow(i + 1);
+    }
+  }
 
-  // Phases
-  try {
-    var phases = JSON.parse(p.phases || '{}');
-    rows.push(['phase_specials',   phases.specials   || false]);
-    rows.push(['phase_groupStage', phases.groupStage || false]);
-  } catch(e) {}
+  // Append fresh config rows
+  try { var ph = JSON.parse(p.phases || '{}');
+        sh.appendRow(['config_phases', JSON.stringify(ph)]); } catch(e) {}
 
-  // Admin PIN
-  if (p.adminPin) rows.push(['adminPin', p.adminPin]);
+  if(p.adminPin)
+    sh.appendRow(['config_adminPin', String(p.adminPin)]);
 
-  // Specials actual outcomes
-  if (p.specialsActual) rows.push(['specialsActual', p.specialsActual]);
+  if(p.specialsActual)
+    sh.appendRow(['config_specialsActual', String(p.specialsActual)]);
 
-  // Participants (name | fn | pin)
   try {
     var parts = JSON.parse(p.participants || '[]');
     parts.forEach(function(pt) {
-      rows.push(['participant', pt.name || '', pt.fn || '', pt.pin || '']);
+      sh.appendRow(['config_participant', pt.name||'', pt.fn||'', pt.pin||'']);
     });
   } catch(e) {}
 
-  if (rows.length > 0) {
-    sheet.getRange(1, 1, rows.length, 4).setValues(rows);
-  }
-
-  return { status: 'ok', rows: rows.length };
+  return { status:'ok' };
 }
 
 // ── WRITE RESULT ──
 function writeResult(p) {
-  var sheet = getOrCreateSheet('Results');
+  var sh   = sheet();
+  var rows = sh.getDataRange().getValues();
 
-  // Check if row already exists for this matchId, update if so
-  var data = sheet.getDataRange().getValues();
-  var found = false;
-  for (var i = 0; i < data.length; i++) {
-    if (data[i][0] === 'result' && data[i][1] === p.matchId) {
-      sheet.getRange(i + 1, 3, 1, 2).setValues([[Number(p.home), Number(p.away)]]);
-      found = true;
-      break;
+  for(var i = 0; i < rows.length; i++) {
+    if(rows[i][0] === 'result' && String(rows[i][1]) === String(p.matchId)) {
+      sh.getRange(i + 1, 3, 1, 2).setValues([[Number(p.home), Number(p.away)]]);
+      return { status:'ok', updated:true };
     }
   }
-  if (!found) {
-    sheet.appendRow(['result', p.matchId, Number(p.home), Number(p.away)]);
-  }
-
-  return { status: 'ok' };
+  sh.appendRow(['result', p.matchId, Number(p.home), Number(p.away)]);
+  return { status:'ok', inserted:true };
 }
 
 // ── WRITE BRACKET ──
 function writeBracket(p) {
-  var sheet = getOrCreateSheet('Results');
+  var sh   = sheet();
+  var rows = sh.getDataRange().getValues();
 
-  // Clear existing bracket rows
-  var data = sheet.getDataRange().getValues();
-  var toDelete = [];
-  for (var i = data.length - 1; i >= 0; i--) {
-    if (data[i][0] === 'bracket' || data[i][0] === 'bracketTeam') {
-      toDelete.push(i + 1);
-    }
+  for(var i = rows.length - 1; i >= 0; i--) {
+    var t = String(rows[i][0]);
+    if(t === 'bracket' || t === 'bracketTeam') sh.deleteRow(i + 1);
   }
-  toDelete.forEach(function(r) { sheet.deleteRow(r); });
 
-  // Write new bracket data
   try {
     var br = JSON.parse(p.bracketResults || '{}');
     Object.keys(br).forEach(function(id) {
-      sheet.appendRow(['bracket', id, Number(br[id].home), Number(br[id].away)]);
+      sh.appendRow(['bracket', id, Number(br[id].home), Number(br[id].away)]);
     });
   } catch(e) {}
 
   try {
     var bt = JSON.parse(p.bracketTeams || '{}');
     Object.keys(bt).forEach(function(id) {
-      sheet.appendRow(['bracketTeam', id, bt[id].home || '', bt[id].away || '']);
+      sh.appendRow(['bracketTeam', id, String(bt[id].home||''), String(bt[id].away||'')]);
     });
   } catch(e) {}
 
-  return { status: 'ok' };
+  return { status:'ok' };
 }
 
 // ── WRITE PREDICTION ──
 function writePrediction(p) {
-  if (!p.name) return { status: 'ignored' };
+  if(!p.name) return { status:'ignored', reason:'no name' };
 
-  var sheet = getOrCreateSheet('Predictions');
-  sheet.appendRow([
+  sheet().appendRow([
     new Date().toISOString(),
-    p.name || '', p.type || '', p.matchId || '',
-    p.homeTeam || '', p.awayTeam || '',
-    p.homeScore || '', p.awayScore || '',
-    p.winner || '', p.runnerUp || '', p.topScorer || '',
-    p.surprise || '', p.sf1 || '', p.sf2 || '', p.sf3 || '', p.sf4 || ''
+    p.name||'',  p.type||'', p.matchId||'',
+    p.homeTeam||'', p.awayTeam||'',
+    p.homeScore||'', p.awayScore||'',
+    p.winner||'', p.runnerUp||'', p.topScorer||'',
+    p.surprise||'', p.sf1||'', p.sf2||'', p.sf3||'', p.sf4||''
   ]);
-
-  return { status: 'ok' };
+  return { status:'ok' };
 }
 
-// ── HELPER: get or create sheet tab ──
-function getOrCreateSheet(name) {
-  var sheet = SS.getSheetByName(name);
-  if (!sheet) {
-    sheet = SS.insertSheet(name);
-    // Add headers
-    if (name === 'Predictions') {
-      sheet.getRange(1, 1, 1, 16).setValues([[
-        'Timestamp','Name','Type','MatchID',
-        'HomeTeam','AwayTeam','HomeScore','AwayScore',
-        'Winner','RunnerUp','TopScorer','Surprise',
-        'SF1','SF2','SF3','SF4'
-      ]]);
-    } else if (name === 'Config') {
-      sheet.getRange(1, 1, 1, 4).setValues([['Key','Value','Value2','Value3']]);
-    } else if (name === 'Results') {
-      sheet.getRange(1, 1, 1, 4).setValues([['Type','MatchID/Key','Home/Value','Away/Value']]);
-    }
-    // Freeze header row
-    sheet.setFrozenRows(1);
-  }
-  return sheet;
-}
-
-// ── TEST FUNCTION (use this instead of Run button) ──
+// ── TEST (run this from editor, not doGet directly) ──
 function testRun() {
-  var mockRead = doGet({ parameter: { action: 'getConfig', callback: 'testCb' } });
-  Logger.log('getConfig response: ' + mockRead.getContent().substring(0, 200));
+  Logger.log('--- testRun ---');
 
-  var mockWrite = doGet({ parameter: { action: 'writeResult', matchId: 'M001', home: '2', away: '1' } });
-  Logger.log('writeResult response: ' + mockWrite.getContent());
+  // Test write config
+  var configResult = writeConfig({
+    phases: '{"specials":true,"groupStage":false}',
+    adminPin: '2026',
+    specialsActual: '{}',
+    participants: '[{"name":"Bibhushan Gautam","fn":"di","pin":"1234"}]'
+  });
+  Logger.log('writeConfig: ' + JSON.stringify(configResult));
+
+  // Test read config
+  var cfg = getConfig();
+  Logger.log('getConfig: ' + JSON.stringify(cfg));
+
+  // Test write result
+  var res = writeResult({ matchId:'M001', home:'2', away:'1' });
+  Logger.log('writeResult: ' + JSON.stringify(res));
+
+  // Test read results
+  var results = getResults();
+  Logger.log('getResults: ' + JSON.stringify(results));
 }
 </pre>
           <div style="font-size:11px;color:var(--t2);"><strong style="color:var(--teal-mid);">Step 3</strong> — Share → Viewer only. Data → Protected Ranges → lock all. Paste URL above.</div>
@@ -1404,17 +1379,6 @@ function testRun() {
 // ════════════════════════════════════════════════════════════
 
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzz0WZOAkcB7j-V6uGlkxmh7XkJcriSyYgcsL3ArZc-C2k3ct8PcGe3JbwFUxUF5bG6Fg/exec';
-
-// Escape untrusted strings before injecting into innerHTML or "double-quoted" attributes.
-// Participant names, team names, and PIN values come from the sheet — treat them as untrusted.
-function esc(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 // ── CALL SHEET ──
 // All sheet communication goes through this one function.
@@ -1567,6 +1531,7 @@ function hideLoadingOverlay() {
   const ov = document.getElementById('loading-overlay');
   if(ov) ov.style.display = 'none';
 }
+
 
 
 const TEAMS=["Algeria", "Argentina", "Australia", "Austria", "Belgium", "Bosnia and Herzegovina", "Brazil", "Cabo Verde", "Canada", "Colombia", "Congo DR", "Croatia", "Curaçao", "Czechia", "Côte d'Ivoire", "Ecuador", "Egypt", "England", "France", "Germany", "Ghana", "Haiti", "IR Iran", "Iraq", "Japan", "Jordan", "Korea Republic", "Mexico", "Morocco", "Netherlands", "New Zealand", "Norway", "Panama", "Paraguay", "Portugal", "Qatar", "Saudi Arabia", "Scotland", "Senegal", "South Africa", "Spain", "Sweden", "Switzerland", "Tunisia", "Türkiye", "USA", "Uruguay", "Uzbekistan"];
@@ -1747,6 +1712,7 @@ let participantPins = {};          // loaded from sheet on init
 let verifiedUser = null;           // session only — re-verify each visit (intentional)
 let predictions = {};              // built from sheet Predictions tab
 let results = {};                  // loaded from sheet Results tab
+let specialsActual   = {};
 let activeGroupFilter = 'all';
 
 const PHASES = { specials: false, groupStage: false }; // loaded from sheet
@@ -2200,7 +2166,6 @@ function clearInputs(){
 }
 
 // ── SPECIALS ACTUAL RESULTS ──
-let specialsActual = JSON.parse(localStorage.getItem('specialsActual')||'{}');
 
 function saveSpecialsResults() {
   specialsActual = {
@@ -2214,6 +2179,7 @@ function saveSpecialsResults() {
     sf4:document.getElementById('actual-sf4').value,
   };
   localStorage.setItem('specialsActual', JSON.stringify(specialsActual));
+  syncConfigToSheet();
   syncConfigToSheet();
   const st=document.getElementById('specials-result-status');
   if(st) st.textContent='✓ Saved — specials are now scored';
@@ -2238,7 +2204,7 @@ function scoreSpecials(pred, actual) {
 }
 
 function postToSheet(payload) {
-  // Route through callSheet (uses SHEET_URL constant)
+  if(!payload.action) payload.action = 'writePrediction';
   callSheet(payload);
 }
 
@@ -2720,6 +2686,7 @@ function changeAdminPin() {
   }
 
   localStorage.setItem('admin_pin', newPin);
+  syncConfigToSheet();
   syncConfigToSheet(); // sync to sheet so all devices use new PIN
   document.getElementById('new-admin-pin').value = '';
   document.getElementById('confirm-admin-pin').value = '';
@@ -2981,6 +2948,41 @@ function generateAllPins() {
   showToast('PINs generated — save them before closing');
 }
 
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function applyConfig(data) {
+  if(data.phases) {
+    PHASES.specials   = data.phases.specials   === true || data.phases.specials   === 'true';
+    PHASES.groupStage = data.phases.groupStage === true || data.phases.groupStage === 'true';
+  }
+  if(Array.isArray(data.participants) && data.participants.length > 0) {
+    participants = data.participants.map(p => p.name).filter(Boolean);
+    data.participants.forEach(p => {
+      if(p.fn)  participantFunctions[p.name] = p.fn;
+      if(p.pin) participantPins[p.name] = p.pin;
+    });
+  }
+  if(data.specialsActual && Object.keys(data.specialsActual).length) {
+    Object.assign(specialsActual, data.specialsActual);
+  }
+  if(data.adminPin) {
+    localStorage.setItem('admin_pin', String(data.adminPin));
+  }
+}
+
+function applyResults(data) {
+  if(data.results)        Object.assign(results,        data.results);
+  if(data.bracketResults) Object.assign(bracketResults, data.bracketResults);
+  if(data.bracketTeams)   Object.assign(bracketTeams,   data.bracketTeams);
+}
+
 function showToast(msg,isError=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(isError?' error':'');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 
 // Populate static selects first
@@ -2997,6 +2999,7 @@ function finishInit() {
     btn.classList.toggle('active', modeMap[btn.textContent.trim()]===matchViewMode);
   });
 }
+initApp();
 // Kick off sheet init
 initApp();
 
