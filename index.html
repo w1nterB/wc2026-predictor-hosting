@@ -2990,7 +2990,18 @@ function toggleInstr() {
   if(t) t.textContent = s ? 'Show setup guide' : 'Hide setup guide';
 }
 
-function showToast(msg,isError=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(isError?' error':'');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+function showToast(msg, isError=false) {
+  const t = document.getElementById('toast');
+  if(!t) return;
+  // Clear any pending hide
+  if(t._hideTimeout) clearTimeout(t._hideTimeout);
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '') + ' show';
+  t._hideTimeout = setTimeout(() => {
+    t.classList.remove('show');
+    t._hideTimeout = null;
+  }, 3000);
+}
 
 // ── INITIALISE ──
 // 1. Populate static team dropdowns (no DB needed)
