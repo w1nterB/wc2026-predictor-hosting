@@ -1444,18 +1444,13 @@ async function sbFetch(path, opts = {}) {
       body:    opts.body    ? JSON.stringify(opts.body) : undefined,
     });
     const method = opts.method || 'GET';
-    if(method === 'GET') {
-      const text = await res.text();
-      if(!res.ok) {
-        console.error('Supabase GET error', res.status, text);
-        return [];
-      }
-      return text ? JSON.parse(text) : [];
-    }
-    // For writes — log errors but don't crash
+    const text = await res.text();
     if(!res.ok) {
-      const text = await res.text();
-      console.error('Supabase write error', res.status, text);
+      console.error('Supabase error', res.status, text);
+    }
+    // Return parsed JSON whenever we have a body (GET or POST with return=representation)
+    if(text) {
+      try { return JSON.parse(text); } catch(e) {}
     }
     return { ok: res.ok, status: res.status };
   } catch(e) {
@@ -3326,15 +3321,18 @@ async function authRegister() {
       body:    { email, name, fn, pin_hash: pinHash },
     });
 
-    if(!Array.isArray(res) || res.length === 0) throw new Error('Registration failed');
+    // Success if we got an array back (return=representation) or ok:true
+    if(res === null) throw new Error('Registration failed — no response');
+    if(Array.isArray(res) && res.length === 0) throw new Error('Registration failed — empty response');
 
     sucEl.textContent = '✓ Account created! You can now sign in.';
     sucEl.classList.add('show');
     btn.textContent = 'Create account';
     btn.disabled = false;
 
-    // Also add to participants list for leaderboard etc
-    await syncNewUserToParticipants(res[0]);
+    // Add to participants list for leaderboard
+    const newUser = Array.isArray(res) ? res[0] : { name: document.getElementById('reg-name').value.trim(), fn: document.getElementById('reg-fn').value };
+    await syncNewUserToParticipants(newUser);
 
     // Auto-switch to login
     setTimeout(() => {
