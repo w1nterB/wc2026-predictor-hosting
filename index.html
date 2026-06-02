@@ -352,11 +352,11 @@ select.portal-input option{background:#fff;}
 .score-input-wrap{display:flex;align-items:center;gap:7px;}
 .score-input-wrap label{font-size:14px;color:var(--t3);text-transform:uppercase;letter-spacing:.7px;white-space:nowrap;font-weight:600;}
 .score-input{
-  width:48px;background:var(--page);
-  border:1px solid var(--border-md);border-radius:7px;
+  width:56px;background:var(--page);
+  border:2px solid var(--border-md);border-radius:8px;
   color:var(--t1);font-family:'DM Mono',monospace;
-  font-size:18px;font-weight:600;text-align:center;padding:5px 3px;
-  transition:border-color .12s,box-shadow .12s;-moz-appearance:textfield;
+  font-size:22px;font-weight:700;text-align:center;padding:8px 3px;
+  transition:border-color .15s,box-shadow .15s;-moz-appearance:textfield;
 }
 .score-input::-webkit-inner-spin-button,.score-input::-webkit-outer-spin-button{-webkit-appearance:none;}
 .score-input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px rgba(37,196,179,.1);}
@@ -974,14 +974,18 @@ select.portal-input option{background:#fff;}
     <!-- PREDICTIONS TAB -->
     <div id="tab-predictions">
       <div class="participant-bar">
-        <div id="logged-in-as" style="display:none;align-items:center;gap:10px;">
-          <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;">Predicting as</div>
-          <div id="logged-in-name" style="font-size:15px;font-weight:800;color:var(--t1);"></div>
-          <div id="logged-in-fn" style="font-size:11px;"></div>
+        <div id="logged-in-as" style="display:none;align-items:center;gap:12px;">
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;">Predicting as</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div id="logged-in-name" style="font-size:16px;font-weight:800;color:var(--t1);"></div>
+              <div id="logged-in-fn"></div>
+            </div>
+          </div>
         </div>
         <!-- Hidden select used internally for compatibility -->
         <select class="portal-select" id="participant-select" onchange="onParticipantChange()" style="display:none;"><option value="">— select your name —</option></select>
-        <div class="submitted-tag" id="submitted-badge"><span class="live-dot"></span>Predictions submitted</div>
+        <div class="submitted-tag" id="submitted-badge"><span class="live-dot"></span><span id="submitted-badge-text">Predictions submitted</span></div>
       </div>
 <!-- PIN auth replaced by login system -->
       <div id="predictions-content">
@@ -1011,7 +1015,7 @@ select.portal-input option{background:#fff;}
 
       <div class="page-section">
         <div class="section-label">Match predictions <span class="s-badge sb-live" id="match-phase-badge">Group stage live</span></div>
-        <div style="font-size:11px;color:var(--t3);margin-bottom:14px;">Correct result (W/D/L) = <strong style="color:var(--t2);font-weight:700;">3 pts</strong> &nbsp;·&nbsp; One team score correct = <strong style="color:var(--t2);font-weight:700;">3 pts</strong> &nbsp;·&nbsp; Exact score = <strong style="color:var(--t2);font-weight:700;">6 pts</strong> &nbsp;·&nbsp; Max 9 pts per match &nbsp;·&nbsp; Locks 1 hr before kickoff</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px;">Pick the score for each match — <strong style="color:var(--teal-mid);">3 pts</strong> for correct result · <strong style="color:var(--teal-mid);">6 pts</strong> for exact score · <strong style="color:var(--teal-mid);">9 pts max</strong> per game · locks 1 hr before kickoff</div>
 
         <div class="view-mode-bar">
           <span style="font-size:11px;font-weight:700;color:var(--t3);margin-right:4px;">View by</span>
@@ -1854,7 +1858,7 @@ function isMatchLocked(matchId) {
 }
 
 // ── MATCH VIEW STATE ──
-let matchViewMode = localStorage.getItem('matchView') || 'round'; // 'round' | 'group' | 'upcoming7'
+let matchViewMode = localStorage.getItem('matchView') || 'upcoming7'; // 'round' | 'group' | 'upcoming7'
 function setMatchView(mode,btn){
   matchViewMode=mode;
   localStorage.setItem('matchView',mode);
@@ -2095,32 +2099,79 @@ function renderByGroup(container, matches) {
 }
 
 function renderUpcoming7(container, matches) {
-  const now = new Date();
-  const in7 = new Date(now.getTime() + 7*24*60*60*1000);
-  const week = matches.filter(m => new Date(m.utc) <= in7);
+  const now   = new Date();
+  const in7   = new Date(now.getTime() + 7*24*60*60*1000);
+  const tz    = getUserTZ();
+  const week  = matches.filter(m => new Date(m.utc) <= in7);
   const later = matches.filter(m => new Date(m.utc) > in7);
-  if(!week.length) {
-    container.innerHTML = '<div class="no-upcoming" style="padding:16px;"><strong>No matches in the next 7 days</strong></div>';
-  } else {
-    const label = document.createElement('div');
-    label.className = 'section-label'; label.style.marginBottom='12px';
-    label.innerHTML = 'Next 7 days <span class="s-badge sb-live">' + week.length + ' matches</span>';
-    container.appendChild(label);
-    week.forEach(m => container.appendChild(buildMatchCard(m, false)));
+
+  if(!week.length && !later.length) {
+    container.innerHTML = '<div class="no-upcoming"><strong>No upcoming matches right now</strong>Check back soon.</div>';
+    return;
   }
+
+  if(!week.length) {
+    // No matches in 7 days — show the next available day
+    const nextDate = new Date(matches[0].utc).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',timeZone:tz});
+    const info = document.createElement('div');
+    info.style.cssText = 'font-size:13px;color:var(--t3);padding:12px 0 16px;';
+    info.textContent = 'No matches in the next 7 days. Next up: ' + nextDate;
+    container.appendChild(info);
+  } else {
+    // Group by local date
+    const byDay = {};
+    week.forEach(m => {
+      const dayKey = new Date(m.utc).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',timeZone:tz});
+      if(!byDay[dayKey]) byDay[dayKey] = [];
+      byDay[dayKey].push(m);
+    });
+
+    Object.entries(byDay).forEach(([day, dayMatches]) => {
+      // Day header
+      const isToday = new Date(dayMatches[0].utc).toDateString() === now.toDateString();
+      const isTomorrow = new Date(dayMatches[0].utc).toDateString() === new Date(now.getTime()+86400000).toDateString();
+      const dayLabel = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : day;
+
+      const hdr = document.createElement('div');
+      hdr.className = 'group-header';
+      hdr.innerHTML = '<span class="group-badge" style="background:var(--navy);">' + dayLabel + '</span>' +
+                      '<span style="font-size:11px;color:var(--t3);margin-left:8px;">' + dayMatches.length + ' match' + (dayMatches.length!==1?'es':'') + '</span>' +
+                      '<hr>';
+      container.appendChild(hdr);
+      dayMatches.forEach(m => container.appendChild(buildMatchCard(m, false)));
+    });
+  }
+
+  // Collapsible section for matches beyond 7 days
   if(later.length) {
-    const viewAllBtn = document.createElement('button');
-    viewAllBtn.className = 'view-all-btn'; viewAllBtn.style.marginTop='12px';
-    viewAllBtn.innerHTML = 'Show all upcoming (' + later.length + ' more) <span class="chevron">▼</span>';
+    const btn = document.createElement('button');
+    btn.className = 'view-all-btn';
+    btn.style.marginTop = '16px';
+    btn.innerHTML = 'More upcoming matches <span style="background:rgba(37,196,179,.1);color:var(--teal-mid);border-radius:10px;padding:1px 8px;font-size:11px;">' + later.length + '</span> <span class="chevron">▼</span>';
     const laterDiv = document.createElement('div');
-    laterDiv.style.display='none';
-    later.forEach(m => laterDiv.appendChild(buildMatchCard(m, false)));
-    viewAllBtn.onclick = () => {
-      const open = laterDiv.style.display!=='none';
-      laterDiv.style.display = open?'none':'block';
-      viewAllBtn.innerHTML = (open?'Show all upcoming':'Hide upcoming') + ' (' + later.length + ') <span class="chevron">' + (open?'▼':'▲') + '</span>';
+    laterDiv.style.display = 'none';
+
+    // Group later matches by day too
+    const laterByDay = {};
+    later.forEach(m => {
+      const dayKey = new Date(m.utc).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',timeZone:tz});
+      if(!laterByDay[dayKey]) laterByDay[dayKey] = [];
+      laterByDay[dayKey].push(m);
+    });
+    Object.entries(laterByDay).forEach(([day, dayMatches]) => {
+      const hdr = document.createElement('div');
+      hdr.className = 'group-header';
+      hdr.innerHTML = '<span class="group-badge" style="background:var(--navy-mid);">' + day + '</span><hr>';
+      laterDiv.appendChild(hdr);
+      dayMatches.forEach(m => laterDiv.appendChild(buildMatchCard(m, false)));
+    });
+
+    btn.onclick = () => {
+      const open = laterDiv.style.display !== 'none';
+      laterDiv.style.display = open ? 'none' : 'block';
+      btn.classList.toggle('open', !open);
     };
-    container.appendChild(viewAllBtn);
+    container.appendChild(btn);
     container.appendChild(laterDiv);
   }
 }
@@ -2193,6 +2244,10 @@ function fnBadge(name) {
   const fnKey = participantFunctions[name];
   if (!fnKey || !FUNCTIONS[fnKey]) return `<span class="fn-badge fn-none">Unassigned</span>`;
   return `<span class="fn-badge ${FUNCTIONS[fnKey].cls}">${FUNCTIONS[fnKey].label}</span>`;
+}
+function fnBadgeByKey(key) {
+  if(!key || !FUNCTIONS[key]) return '';
+  return `<span class="fn-badge ${FUNCTIONS[key].cls}">${FUNCTIONS[key].label}</span>`;
 }
 
 function renderChips(){
@@ -2433,11 +2488,24 @@ async function submitPredictions(){
     setTimeout(() => {
       if(submitBtn) { submitBtn.textContent = 'Submit predictions'; submitBtn.style.background = ''; submitBtn.disabled = false; }
     }, 2500);
-    document.getElementById('submitted-badge')?.classList.add('show');
-    const note = document.getElementById('submit-note');
+    const badge = document.getElementById('submitted-badge');
+    const badgeText = document.getElementById('submitted-badge-text');
     const matchCount = Object.keys(matchPreds).length;
-    if(note) note.textContent = `✓ Saved ${matchCount} match prediction${matchCount!==1?'s':''} + specials at ${new Date().toLocaleTimeString()}`;
-    showToast('Predictions saved ✓');
+    if(badge) badge.classList.add('show');
+    if(badgeText) {
+      if(matchCount === 0) {
+        badgeText.textContent = 'Specials submitted';
+      } else if(matchCount === 1) {
+        const matchId = Object.keys(matchPreds)[0];
+        const m = ALL_MATCHES.find(x => x.id === matchId);
+        badgeText.textContent = m ? `${m.home} v ${m.away} submitted` : '1 prediction submitted';
+      } else {
+        badgeText.textContent = `${matchCount} predictions submitted`;
+      }
+    }
+    const note = document.getElementById('submit-note');
+    if(note) note.textContent = `Last saved at ${new Date().toLocaleTimeString()}`;
+    showToast(`✓ ${matchCount} match prediction${matchCount!==1?'s':''} saved`);
   } catch(err) {
     console.error('submitPredictions error:', err);
     if(submitBtn) { submitBtn.textContent = 'Submit predictions'; submitBtn.style.background = ''; submitBtn.disabled = false; }
@@ -3410,7 +3478,7 @@ function onLoginSuccess(user) {
   const loginFn  = document.getElementById('logged-in-fn');
   if(loginAs)   loginAs.style.display  = 'flex';
   if(loginName) loginName.textContent  = user.name;
-  if(loginFn)   loginFn.innerHTML      = fnBadge(user.fn);
+  if(loginFn)   loginFn.innerHTML      = fnBadgeByKey(user.fn);
 
   // Set the hidden select so all existing logic works
   const sel = document.getElementById('participant-select');
@@ -3428,6 +3496,14 @@ function onLoginSuccess(user) {
   // Show sticky bar
   const bar = document.getElementById('sticky-submit-bar');
   if(bar) bar.style.display = '';
+
+  // Default to upcoming7 view for a clean experience
+  matchViewMode = 'upcoming7';
+  localStorage.setItem('matchView', 'upcoming7');
+  document.querySelectorAll('.view-mode-btn').forEach(btn => {
+    const map = {'Matchday':'round','Group':'group','Next 7 days':'upcoming7','All matches':'all'};
+    btn.classList.toggle('active', map[btn.textContent.trim()] === 'upcoming7');
+  });
 
   showToast('Welcome back, ' + user.name + '! 👋');
 }
