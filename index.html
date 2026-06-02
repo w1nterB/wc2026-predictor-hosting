@@ -999,7 +999,7 @@ select.portal-input option{background:#fff;}
             <div class="field-group"><div class="field-label">Tournament winner <span class="pts-tag">10 pts</span></div><select class="portal-input" id="s-winner"><option value="">Select team…</option></select></div>
             <div class="field-group"><div class="field-label">Runner-up <span class="pts-tag">7 pts</span></div><select class="portal-input" id="s-runnerup"><option value="">Select team…</option></select></div>
             <div class="field-group"><div class="field-label">Top scorer <span class="pts-tag">8 pts</span></div><input class="portal-input" type="text" id="s-topscorer" placeholder="Player name…"></div>
-            <div class="field-group"><div class="field-label">Surprise package <span class="pts-tag">5 pts</span></div><select class="portal-input" id="s-surprise"><option value="">Team that exceeds expectations…</option></select></div>
+            <div style="display:none;"><select class="portal-input" id="s-surprise"><option value=""></option></select></div>
             <div class="semis-group">
               <div class="semis-label">All 4 semi-finalists &nbsp;<span class="pts-tag">8 all · 4 for 3 · 2 for 2</span></div>
               <div class="semis-grid">
@@ -1144,9 +1144,9 @@ select.portal-input option{background:#fff;}
             <div class="sr-label">Top scorer</div>
             <input class="portal-input" id="actual-topscorer" placeholder="Player name…">
           </div>
-          <div class="sr-group">
-            <div class="sr-label">Surprise package</div>
-            <select class="portal-input" id="actual-surprise"><option value="">Select team…</option></select>
+          <!-- surprise package outcome hidden -->
+          <div style="display:none;">
+            <select class="portal-input" id="actual-surprise"><option value=""></option></select>
           </div>
           <div class="sr-group" style="grid-column:1/-1;">
             <div class="sr-label">Semi-finalists (all 4)</div>
@@ -2699,13 +2699,7 @@ function renderDashboard(){
   tCard.appendChild(tBody);
   c.appendChild(tCard);
 
-  // Upsets
-  const uCard=document.createElement('div');uCard.className='dash-card';
-  uCard.innerHTML=`<h3>Upset Predictors</h3><p style="font-size:12px;color:var(--t3);margin-bottom:14px;">Away wins — who called them?</p>`;
-  const upsets=ALL_MATCHES.filter(m=>results[m.id]&&results[m.id].away>results[m.id].home);
-  if(!upsets.length){uCard.innerHTML+=`<p style="color:var(--t3);font-size:13px;">No upsets yet.</p>`;}
-  else{upsets.forEach(m=>{const r=results[m.id];const tippers=participants.filter(n=>{const p=(predictions[n]||{})[m.id];return p&&res(p.home,p.away)===res(r.home,r.away);});const row=document.createElement('div');row.className='upset-row';row.innerHTML=`<div><div class="upset-match">${m.home} ${r.home}–${r.away} ${m.away}</div><div class="upset-tippers">${tippers.length?'Called by: '+tippers.map(esc).join(', '):'Nobody called it'}</div></div><span class="upset-count">${tippers.length} / ${participants.length}</span>`;uCard.appendChild(row);});}
-  c.appendChild(uCard);
+  // Upset Predictors card hidden (kept for future use)
 
   // Accuracy
   const aCard=document.createElement('div');aCard.className='dash-card';
@@ -2755,11 +2749,7 @@ function renderDashboard(){
   funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🎯</div><div class="fun-stat-label">Top Tipper</div><div class="fun-stat-name">${topTipper?esc(topTipper[0]):'TBD'}</div><div class="fun-stat-sub">${topTipper?topTipper[1].total+' pts':''}</div></div>`;
   const exactLeader=ranked.slice().sort((a,b)=>b[1].exact-a[1].exact)[0];
   funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🔮</div><div class="fun-stat-label">Exact Score King</div><div class="fun-stat-name">${exactLeader&&exactLeader[1].exact>0?esc(exactLeader[0]):'TBD'}</div><div class="fun-stat-sub">${exactLeader&&exactLeader[1].exact>0?exactLeader[1].exact+' exact scores':''}</div></div>`;
-  const funUpsets=ALL_MATCHES.filter(m=>results[m.id]&&results[m.id].away>results[m.id].home);
-  const funUpsetCounts={};participants.forEach(n=>{funUpsetCounts[n]=0;});
-  funUpsets.forEach(m=>{const r=results[m.id];participants.forEach(n=>{const p=(predictions[n]||{})[m.id];if(p&&res(p.home,p.away)===res(r.home,r.away))funUpsetCounts[n]++;});});
-  const upsetKing=Object.entries(funUpsetCounts).sort((a,b)=>b[1]-a[1])[0];
-  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">😤</div><div class="fun-stat-label">Upset King</div><div class="fun-stat-name">${upsetKing&&upsetKing[1]>0?esc(upsetKing[0]):'Nobody yet'}</div><div class="fun-stat-sub">${upsetKing&&upsetKing[1]>0?upsetKing[1]+' upsets called':''}</div></div>`;
+  // Upset King stat hidden (kept for future use)
   const lastMs=ALL_MATCHES.filter(m=>results[m.id]).slice(-3);
   const recentPts={};participants.forEach(n=>{recentPts[n]=lastMs.reduce((s,m)=>s+scoreMatch((predictions[n]||{})[m.id],results[m.id]),0);});
   const hotStreak=Object.entries(recentPts).sort((a,b)=>b[1]-a[1])[0];
@@ -2847,7 +2837,7 @@ function renderPublicPage(){
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Tournament winner</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">10 pts</span></div>
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Runner-up</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">7 pts</span></div>
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Top scorer</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">8 pts</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Surprise package</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">5 pts</span></div>
+            <!-- Surprise package rule hidden -->
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">All 4 semi-finalists correct</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">8 pts</span></div>
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Any 3 of 4 semi-finalists</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">4 pts</span></div>
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;"><span style="color:var(--t2);">Any 2 of 4 semi-finalists</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">2 pts</span></div>
@@ -2910,13 +2900,21 @@ function renderPublicPage(){
 
   const schedCard=document.createElement('div');schedCard.style.cssText='background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:14px;overflow-x:auto;';
   const schedTable=document.createElement('table');schedTable.className='pub-schedule-table';
-  schedTable.innerHTML=`<thead><tr><th>Date</th><th>Group</th><th>Home</th><th style="text-align:center">Score</th><th>Away</th><th>Kickoff (local time)</th></tr></thead>`;
+  schedTable.innerHTML=`<thead><tr><th>Group</th><th>Home</th><th style="text-align:center;">Score</th><th>Away</th><th>Kickoff (your time)</th></tr></thead>`;
   const schedTbody=document.createElement('tbody');
   ALL_MATCHES.forEach(m=>{
     const r=results[m.id];
     const tr=document.createElement('tr');tr.dataset.group=m.group||'';
-    const scoreCell=r?`<span class="pub-score-cell">${r.home} – ${r.away}</span>`:`<span class="pub-vs-cell">vs</span>`;
-    tr.innerHTML=`<td>${m.group?`<span class="group-badge" style="font-size:10px;padding:2px 8px;">${m.group}</span>`:'<span style="color:var(--t3);font-size:11px;">'+(m.round||'KO')+'</span>'}</td><td>${m.hf||''} ${m.home}</td><td style="text-align:center;">${scoreCell}</td><td>${m.away} ${m.af||''}</td><td class="pub-date-cell">${fmtMatchTime(m.id)}</td>`;
+        const schedR=results[m.id];
+    const scoreCell = schedR
+      ? `<span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--teal-mid);">${schedR.home}&thinsp;–&thinsp;${schedR.away}</span>`
+      : `<span style="color:var(--t4);font-size:12px;letter-spacing:1px;">vs</span>`;
+    const groupLabel = m.group
+      ? `<span class="group-badge" style="font-size:10px;padding:2px 8px;">${m.group.replace('Group ','Grp ')}</span>`
+      : `<span style="color:var(--t3);font-size:11px;">${m.round||'KO'}</span>`;
+    const hFlag = m.hf && m.hf.length <= 4 ? `<span style="font-size:11px;color:var(--t3);margin-right:4px;">${m.hf}</span>` : (m.hf ? `<span style="margin-right:4px;">${m.hf}</span>` : '');
+    const aFlag = m.af && m.af.length <= 4 ? `<span style="font-size:11px;color:var(--t3);margin-left:4px;">${m.af}</span>` : (m.af ? `<span style="margin-left:4px;">${m.af}</span>` : '');
+    tr.innerHTML=`<td>${groupLabel}</td><td>${hFlag}${esc(m.home)}</td><td style="text-align:center;">${scoreCell}</td><td>${esc(m.away)}${aFlag}</td><td class="pub-date-cell">${fmtMatchTime(m.id)}</td>`;
     schedTbody.appendChild(tr);
   });
   schedTable.appendChild(schedTbody);
