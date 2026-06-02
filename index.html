@@ -931,7 +931,7 @@ select.portal-input option{background:#fff;}
     </div>
     <div class="sb-tourney">
       <div class="sb-tourney-name">Coevolve · WC2026</div>
-      <div class="sb-tourney-dates">12 Jun — 20 Jul · USA / MEX / CAN</div>
+      <div class="sb-tourney-dates" id="sb-tourney-dates">Loading…</div>
     </div>
   </div>
 
@@ -966,7 +966,7 @@ select.portal-input option{background:#fff;}
 <div class="main">
   <div class="topbar">
     <span class="topbar-title" id="topbar-title">My Predictions</span>
-    <span class="topbar-meta" id="topbar-meta">104 matches · 12 Jun – 20 Jul 2026</span>
+    <span class="topbar-meta" id="topbar-meta">104 matches</span>
     <div id="topbar-user-pill"></div>
   </div>
   <div class="content">
@@ -998,7 +998,7 @@ select.portal-input option{background:#fff;}
           <div class="specials-grid">
             <div class="field-group"><div class="field-label">Tournament winner <span class="pts-tag">10 pts</span></div><select class="portal-input" id="s-winner"><option value="">Select team…</option></select></div>
             <div class="field-group"><div class="field-label">Runner-up <span class="pts-tag">7 pts</span></div><select class="portal-input" id="s-runnerup"><option value="">Select team…</option></select></div>
-            <div class="field-group"><div class="field-label">Top scorer <span class="pts-tag">8 pts</span></div><input class="portal-input" type="text" id="s-topscorer" placeholder="Player name…"></div>
+            <div style="display:none;"><input type="text" id="s-topscorer" value=""></div>
             <div style="display:none;"><select class="portal-input" id="s-surprise"><option value=""></option></select></div>
             <div class="semis-group">
               <div class="semis-label">All 4 semi-finalists &nbsp;<span class="pts-tag">8 all · 4 for 3 · 2 for 2</span></div>
@@ -1105,7 +1105,7 @@ select.portal-input option{background:#fff;}
           <div class="phase-toggle-item">
             <div class="phase-toggle-info">
               <div class="phase-toggle-name">Pre-tournament specials</div>
-              <div class="phase-toggle-desc">Winner, top scorer, semi-finalists. Open before tournament starts.</div>
+              <div class="phase-toggle-desc">Tournament winner, runner-up and semi-finalists. Open before tournament starts.</div>
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="phase-toggle-specials" onchange="togglePhase('specials')">
@@ -1140,10 +1140,7 @@ select.portal-input option{background:#fff;}
             <div class="sr-label">Runner-up</div>
             <select class="portal-input" id="actual-runnerup"><option value="">Select team…</option></select>
           </div>
-          <div class="sr-group">
-            <div class="sr-label">Top scorer</div>
-            <input class="portal-input" id="actual-topscorer" placeholder="Player name…">
-          </div>
+          <div style="display:none;"><input type="text" id="actual-topscorer" value=""></div>
           <!-- surprise package outcome hidden -->
           <div style="display:none;">
             <select class="portal-input" id="actual-surprise"><option value=""></option></select>
@@ -2455,6 +2452,20 @@ async function submitPredictions(){
   });
 
   // Build all rows and write in parallel
+
+  // ── WINNER NOT IN SEMIS CHECK ──
+  if(sp.winner && sp.winner !== '') {
+    const sfTeams = [sp.sf1, sp.sf2, sp.sf3, sp.sf4].filter(Boolean);
+    if(sfTeams.length > 0 && !sfTeams.includes(sp.winner)) {
+      const confirmed = confirm(
+        `You picked ${sp.winner} as tournament winner but didn't include them in your semi-final predictions.\n\nA team must reach the semis to win the tournament.\n\nContinue anyway?`
+      );
+      if(!confirmed) { 
+        if(submitBtn) { submitBtn.textContent = 'Submit predictions'; submitBtn.style.background = ''; submitBtn.disabled = false; }
+        return; 
+      }
+    }
+  }
   const writes = [];
   writes.push(postToSheet({name, type:'specials', matchId:'', ...sp}));
   Object.entries(matchPreds).forEach(([matchId, pred]) => {
@@ -2836,7 +2847,7 @@ function renderPublicPage(){
           <div style="display:flex;flex-direction:column;gap:6px;">
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Tournament winner</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">10 pts</span></div>
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Runner-up</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">7 pts</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Top scorer</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">8 pts</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><!-- top scorer rule hidden --></div>
             <!-- Surprise package rule hidden -->
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">All 4 semi-finalists correct</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">8 pts</span></div>
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Any 3 of 4 semi-finalists</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">4 pts</span></div>
@@ -2846,7 +2857,7 @@ function renderPublicPage(){
         <div class="pub-group-card">
           <div class="pub-group-name">Tournament format</div>
           <div style="font-size:13px;color:var(--t2);line-height:1.8;">48 teams · 12 groups of 4 · Top 2 + 8 best 3rd-place teams advance · Round of 32 → Round of 16 → Quarter-finals → Semi-finals → Final</div>
-          <div style="font-size:12px;color:var(--t3);margin-top:6px;">11 Jun – 19 Jul 2026 · USA, Mexico, Canada</div>
+          <div style="font-size:12px;color:var(--t3);margin-top:6px;" id="rules-tourney-dates">12 Jun – 19 Jul 2026 · USA, Mexico, Canada</div>
         </div>
       </div>
 
@@ -3578,6 +3589,20 @@ populateTeamSelects();
 
 // 2. finishInit is called by initApp() after DB loads
 function finishInit() {
+  // Set dynamic tournament dates from match data
+  const tz = getUserTZ();
+  const allUtcTimes = ALL_MATCHES.map(m => new Date(m.utc)).filter(d => !isNaN(d));
+  if(allUtcTimes.length) {
+    const first = new Date(Math.min(...allUtcTimes));
+    const last  = new Date(Math.max(...allUtcTimes));
+    const fmt = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:tz});
+    const dateStr = fmt(first) + ' — ' + fmt(last);
+    const sbDates = document.getElementById('sb-tourney-dates');
+    if(sbDates) sbDates.textContent = dateStr + ' · USA / MEX / CAN';
+    const topMeta = document.getElementById('topbar-meta');
+    if(topMeta) topMeta.textContent = ALL_MATCHES.length + ' matches · ' + dateStr;
+  }
+
   // Rebuild participant dropdown with DB-loaded participants
   const sel = document.getElementById('participant-select');
   if(sel) {
