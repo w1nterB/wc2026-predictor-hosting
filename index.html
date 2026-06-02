@@ -436,7 +436,7 @@ select.portal-input option{background:#fff;}
 .dash-card p.sub{font-size:14px;color:var(--t3);margin-bottom:14px;}
 
 /* leaderboard */
-.lb-row{display:grid;grid-template-columns:36px 1fr repeat(4,52px);align-items:center;gap:6px;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px;}
+.lb-row{display:grid;grid-template-columns:36px 1fr 60px 64px 60px 56px;align-items:center;gap:4px;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px;}
 .lb-row:last-child{border-bottom:none;}
 .lb-row.header{color:var(--t3);font-size:14px;text-transform:uppercase;letter-spacing:.8px;padding-bottom:8px;font-family:'DM Mono',monospace;}
 .rank-no{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;font-family:'DM Mono',monospace;}
@@ -1019,9 +1019,11 @@ select.portal-input option{background:#fff;}
 
         <div class="view-mode-bar">
           <span style="font-size:11px;font-weight:700;color:var(--t3);margin-right:4px;">View by</span>
-          <button class="view-mode-btn active" onclick="setMatchView('round',this)">Matchday</button>
-          <button class="view-mode-btn" onclick="setMatchView('group',this)">Group</button>
+          <button class="view-mode-btn" onclick="setMatchView('next',this)">Next match</button>
           <button class="view-mode-btn" onclick="setMatchView('upcoming7',this)">Next 7 days</button>
+          <button class="view-mode-btn" onclick="setMatchView('round',this)">Matchday</button>
+          <button class="view-mode-btn" onclick="setMatchView('group',this)">Group</button>
+          <button class="view-mode-btn" onclick="setMatchView('country',this)">By country</button>
           <button class="view-mode-btn" onclick="setMatchView('all',this)">All matches</button>
         </div>
 
@@ -1845,7 +1847,7 @@ function isMatchLocked(matchId) {
 }
 
 // ── MATCH VIEW STATE ──
-let matchViewMode = localStorage.getItem('matchView') || 'upcoming7'; // 'round' | 'group' | 'upcoming7'
+let matchViewMode = localStorage.getItem('matchView') || 'next'; // 'round' | 'group' | 'upcoming7'
 function setMatchView(mode,btn){
   matchViewMode=mode;
   localStorage.setItem('matchView',mode);
@@ -2039,10 +2041,14 @@ function renderMatches(){
     upcoming.innerHTML = '<div class="no-upcoming"><strong>All group stage matches complete</strong>Check the leaderboard for standings.</div>';
   } else {
     const mode = matchViewMode;
-    if(mode === 'group') {
-      renderByGroup(upcoming, upcomingMatches);
+    if(mode === 'next') {
+      renderNextMatch(upcoming, upcomingMatches);
     } else if(mode === 'upcoming7') {
       renderUpcoming7(upcoming, upcomingMatches);
+    } else if(mode === 'group') {
+      renderByGroup(upcoming, upcomingMatches);
+    } else if(mode === 'country') {
+      renderByCountry(upcoming, ALL_MATCHES);
     } else if(mode === 'all') {
       renderByMatchday(upcoming, ALL_MATCHES.filter(m=>m.group&&!completedIds.has(m.id)), ALL_MATCHES.filter(m=>completedIds.has(m.id)));
     } else {
@@ -2094,6 +2100,103 @@ function renderByGroup(container, matches) {
     gh.innerHTML = `<span class="group-badge">${g.name}</span><hr>`;
     container.appendChild(gh);
     gm.forEach(m => container.appendChild(buildMatchCard(m, false)));
+  });
+}
+
+function renderNextMatch(container, matches) {
+  // Find the next match(es) — all matches starting at the same time as the first upcoming
+  const now = new Date();
+  const upcoming = matches.filter(m => new Date(m.utc) > now);
+
+  if(!upcoming.length) {
+    // Tournament over — show last played matches
+    const played = matches.filter(m => results[m.id]);
+    const lastTime = played.length ? Math.max(...played.map(m => new Date(m.utc).getTime())) : 0;
+    const lastBatch = played.filter(m => new Date(m.utc).getTime() === lastTime);
+    const hdr = document.createElement('div');
+    hdr.className = 'group-header';
+    hdr.innerHTML = '<span class="group-badge" style="background:var(--navy);">Tournament complete</span><hr>';
+    container.appendChild(hdr);
+    (lastBatch.length ? lastBatch : played.slice(-3)).forEach(m => container.appendChild(buildMatchCard(m, false)));
+    return;
+  }
+
+  // Get the earliest kickoff time
+  const nextTime = Math.min(...upcoming.map(m => new Date(m.utc).getTime()));
+  // All matches starting within 2 hours of the earliest (same "slot")
+  const nextBatch = upcoming.filter(m => new Date(m.utc).getTime() <= nextTime + 2 * 60 * 60 * 1000);
+
+  const tz = getUserTZ();
+  const timeStr = new Date(nextTime).toLocaleString('en-GB', {
+    weekday:'long', day:'numeric', month:'long',
+    hour:'2-digit', minute:'2-digit', timeZoneName:'short', timeZone:tz
+  });
+
+  const hdr = document.createElement('div');
+  hdr.className = 'group-header';
+  hdr.innerHTML = '<span class="group-badge" style="background:var(--teal);">Next ' +
+    (nextBatch.length > 1 ? nextBatch.length + ' matches' : 'match') + '</span>' +
+    '<span style="font-size:11px;color:var(--t3);margin-left:8px;">' + timeStr + '</span><hr>';
+  container.appendChild(hdr);
+  nextBatch.forEach(m => container.appendChild(buildMatchCard(m, false)));
+
+  // Show a hint about how many more are coming
+  const remaining = upcoming.length - nextBatch.length;
+  if(remaining > 0) {
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-size:12px;color:var(--t3);padding:10px 0 4px;text-align:center;';
+    hint.textContent = remaining + ' more upcoming match' + (remaining!==1?'es':'') + ' — switch to "Next 7 days" or "All matches" to see them';
+    container.appendChild(hint);
+  }
+}
+
+function renderByCountry(container, matches) {
+  // Build a search/select UI — find all teams and their matches
+  const teamMatches = {};
+  matches.forEach(m => {
+    [m.home, m.away].forEach(team => {
+      if(!team || team === 'To be announced') return;
+      if(!teamMatches[team]) teamMatches[team] = [];
+      teamMatches[team].push(m);
+    });
+  });
+  const teams = Object.keys(teamMatches).sort();
+
+  // Search box
+  const searchWrap = document.createElement('div');
+  searchWrap.style.cssText = 'margin-bottom:14px;';
+  searchWrap.innerHTML = '<input class="filter-search" id="country-search" type="text" placeholder="🔍 Search country…" style="width:100%;max-width:320px;" oninput="filterCountryView()">';
+  container.appendChild(searchWrap);
+
+  // Teams list
+  const teamsDiv = document.createElement('div');
+  teamsDiv.id = 'country-teams-list';
+  teamsDiv.style.cssText = 'display:flex;flex-direction:column;gap:16px;';
+
+  teams.forEach(team => {
+    const ms = teamMatches[team];
+    const section = document.createElement('div');
+    section.className = 'country-section';
+    section.dataset.team = team.toLowerCase();
+
+    // Header with flag
+    const matchData = matches.find(m => m.home === team);
+    const flag = matchData?.hf || (matches.find(m => m.away === team)?.af) || '';
+    section.innerHTML = '<div class="group-header"><span class="group-badge" style="background:var(--navy-mid);">' +
+      (flag ? flag + ' ' : '') + esc(team) + '</span>' +
+      '<span style="font-size:11px;color:var(--t3);margin-left:6px;">' + ms.length + ' match' + (ms.length!==1?'es':'') + '</span><hr></div>';
+
+    ms.forEach(m => section.appendChild(buildMatchCard(m, false)));
+    teamsDiv.appendChild(section);
+  });
+
+  container.appendChild(teamsDiv);
+}
+
+function filterCountryView() {
+  const q = document.getElementById('country-search')?.value.toLowerCase() || '';
+  document.querySelectorAll('.country-section').forEach(s => {
+    s.style.display = s.dataset.team?.includes(q) ? '' : 'none';
   });
 }
 
@@ -2684,7 +2787,7 @@ function renderDashboard(){
   const lb=document.createElement('div');lb.className='dash-card';
   lb.innerHTML=`<h3>Leaderboard <span style="font-size:12px;font-weight:400;color:var(--t3);margin-left:8px;">${played} result${played!==1?'s':''} in${hasSpecials?' · specials scored':''}</span></h3>`;
   const hdr=document.createElement('div');hdr.className='lb-row header';
-  const hdrCols = hasSpecials ? `<span>#</span><span>Name</span><span style="text-align:right">Match</span><span style="text-align:right">Specials</span><span style="text-align:right">Total</span><span style="text-align:right">Exact</span>` : `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">Results ✓</span><span style="text-align:right">Exact</span><span style="text-align:right">Played</span>`;
+  const hdrCols = hasSpecials ? `<span>#</span><span>Name</span><span style="text-align:right">Match</span><span style="text-align:right">Spec.</span><span style="text-align:right">Total</span><span style="text-align:right">Exact</span>` : `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">Results ✓</span><span style="text-align:right">Exact</span><span style="text-align:right">Played</span>`;
   hdr.innerHTML=hdrCols;
   lb.appendChild(hdr);
   ranked.forEach(([name,s],i)=>{
@@ -2859,7 +2962,7 @@ function renderPublicPage(){
           <div style="display:flex;flex-direction:column;gap:6px;">
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Tournament winner</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">10 pts</span></div>
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Runner-up</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">7 pts</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><!-- top scorer rule hidden --></div>
+            
             <!-- Surprise package rule hidden -->
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">All 4 semi-finalists correct</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">8 pts</span></div>
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Any 3 of 4 semi-finalists</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">4 pts</span></div>
@@ -3518,10 +3621,10 @@ function onLoginSuccess(user) {
   if(bar) bar.style.display = '';
 
   // Default to upcoming7 view for a clean experience
-  matchViewMode = 'upcoming7';
-  localStorage.setItem('matchView', 'upcoming7');
+  matchViewMode = 'next';
+  localStorage.setItem('matchView', 'next');
   document.querySelectorAll('.view-mode-btn').forEach(btn => {
-    const map = {'Matchday':'round','Group':'group','Next 7 days':'upcoming7','All matches':'all'};
+    const map = {'Next match':'next','Next 7 days':'upcoming7','Matchday':'round','Group':'group','By country':'country','All matches':'all'};
     btn.classList.toggle('active', map[btn.textContent.trim()] === 'upcoming7');
   });
 
@@ -3632,7 +3735,7 @@ function finishInit() {
   renderPhaseToggles();
   updatePhaseBadges();
   document.querySelectorAll('.view-mode-btn').forEach(btn => {
-    const map = {'Matchday':'round','Group':'group','Next 7 days':'upcoming7','All matches':'all'};
+    const map = {'Next match':'next','Next 7 days':'upcoming7','Matchday':'round','Group':'group','By country':'country','All matches':'all'};
     btn.classList.toggle('active', map[btn.textContent.trim()] === matchViewMode);
   });
 }
