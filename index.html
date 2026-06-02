@@ -1164,9 +1164,64 @@ select.portal-input option{background:#fff;}
         </div>
       </div>
 
+      <!-- ENTER RESULTS -->
+      <div class="admin-card" style="border-left:3px solid var(--red);">
+        <div class="admin-title">Enter match results</div>
+        <div class="admin-sub">Select a completed match and enter the final score. Points update instantly for all participants.</div>
+        <select class="portal-input" id="admin-match-select" style="max-width:420px;margin-bottom:12px;"><option value="">Select match…</option></select>
+        <div id="result-entry-area" style="display:none;">
+          <div class="res-grid">
+            <div class="res-team" id="res-team-home"></div>
+            <div class="score-pair">
+              <input class="result-input" type="number" id="res-score-home" min="0" max="20" placeholder="0">
+              <span class="res-sep">–</span>
+              <input class="result-input" type="number" id="res-score-away" min="0" max="20" placeholder="0">
+            </div>
+            <div class="res-team" id="res-team-away"></div>
+          </div>
+          <div style="margin-top:14px;"><button class="btn-primary" onclick="saveResult()">Save result</button></div>
+        </div>
+      </div>
+
+      <!-- MANAGE PARTICIPANTS -->
+      <div class="admin-card" style="border-left:3px solid var(--teal);">
+        <div class="admin-title">Manage participants</div>
+        <div class="admin-sub">Add or remove names and assign each person to their Coevolve Function.</div>
+        <div class="p-chips" id="p-chips"></div>
+        <div class="input-row">
+          <input class="portal-input" id="new-participant" style="flex:1;min-width:160px;" placeholder="Full name…" onkeydown="if(event.key==='Enter')addParticipant()">
+          <select class="portal-input" id="new-participant-fn" style="max-width:200px;">
+            <option value="">Select function…</option>
+            <option value="di">Digital Innovation</option>
+            <option value="sm">Sales &amp; Marketing</option>
+            <option value="ops">Operations</option>
+            <option value="mgmt">Management</option>
+          </select>
+          <button class="btn-secondary" onclick="addParticipant()">Add participant</button>
+        </div>
+      </div>
+
+      <!-- PARTICIPANT PINS -->
+      <div class="admin-card" style="border-left:3px solid var(--blue);">
+        <div class="admin-title">Registered users</div>
+        <div class="admin-sub">Users who have registered via the app. PINs are set by each user at registration. Use the Remove button to delete a user — they will need to contact you to re-register.</div>
+        <div id="pin-mgmt-list"></div>
+        <span id="pin-save-status" style="font-size:11px;color:var(--t3);display:none;"></span>
+      </div>
+
+      <!-- KNOCKOUT BRACKET RESULTS -->
+      <div class="admin-card" style="border-left:3px solid var(--blue);">
+        <div class="admin-title">Knockout stage results</div>
+        <div class="admin-sub">Set team names and scores for Round of 32 through the Final. Updates the bracket view for all participants.</div>
+        <div id="ko-bracket-admin"></div>
+      </div>
+
       <!-- SUPABASE CONFIG -->
-      <div class="admin-card">
-        <div class="admin-title">Database connection</div>
+      <div class="admin-card dash-card-collapsible" style="border-top:1px solid var(--border);margin-top:4px;">
+        <div class="dash-card-header" onclick="this.parentElement.querySelector('.dash-card-body').classList.toggle('collapsed');this.querySelector('.collapse-chevron').classList.toggle('open');" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;">
+        <div class="admin-title">Database connection</div><span class="collapse-chevron">▼</span>
+        </div>
+        <div class="dash-card-body collapsed">
         <div class="admin-sub">Powered by Supabase. Connection status shown below. To update credentials, edit <code style="font-family:'DM Mono',monospace;background:var(--page);padding:1px 6px;border-radius:4px;">SUPABASE_URL</code> and <code style="font-family:'DM Mono',monospace;background:var(--page);padding:1px 6px;border-radius:4px;">SUPABASE_ANON_KEY</code> at the top of the HTML file and re-upload to GitHub.</div>
         <div id="supabase-status" style="font-size:12px;padding:8px 0;"></div>
         <button class="btn-secondary" onclick="checkSupabaseConnection()">Test connection</button>
@@ -1247,64 +1302,6 @@ create policy "anon all" on predictions  for all using (true) with check (true);
         </div>
 
       </div>
-
-      <!-- ENTER RESULTS -->
-      <div class="admin-card" style="border-left:3px solid var(--red);">
-        <div class="admin-title">Enter match results</div>
-        <div class="admin-sub">Select a completed match and enter the final score. Points update instantly for all participants.</div>
-        <select class="portal-input" id="admin-match-select" style="max-width:420px;margin-bottom:12px;"><option value="">Select match…</option></select>
-        <div id="result-entry-area" style="display:none;">
-          <div class="res-grid">
-            <div class="res-team" id="res-team-home"></div>
-            <div class="score-pair">
-              <input class="result-input" type="number" id="res-score-home" min="0" max="20" placeholder="0">
-              <span class="res-sep">–</span>
-              <input class="result-input" type="number" id="res-score-away" min="0" max="20" placeholder="0">
-            </div>
-            <div class="res-team" id="res-team-away"></div>
-          </div>
-          <div style="margin-top:14px;"><button class="btn-primary" onclick="saveResult()">Save result</button></div>
-        </div>
-      </div>
-
-      <!-- MANAGE PARTICIPANTS -->
-      <div class="admin-card" style="border-left:3px solid var(--teal);">
-        <div class="admin-title">Manage participants</div>
-        <div class="admin-sub">Add or remove names and assign each person to their Coevolve Function.</div>
-        <div class="p-chips" id="p-chips"></div>
-        <div class="input-row">
-          <input class="portal-input" id="new-participant" style="flex:1;min-width:160px;" placeholder="Full name…" onkeydown="if(event.key==='Enter')addParticipant()">
-          <select class="portal-input" id="new-participant-fn" style="max-width:200px;">
-            <option value="">Select function…</option>
-            <option value="di">Digital Innovation</option>
-            <option value="sm">Sales &amp; Marketing</option>
-            <option value="ops">Operations</option>
-            <option value="mgmt">Management</option>
-          </select>
-          <button class="btn-secondary" onclick="addParticipant()">Add participant</button>
-        </div>
-      </div>
-
-      <!-- PARTICIPANT PINS -->
-      <div class="admin-card" style="border-left:3px solid var(--blue);">
-        <div class="admin-title">Participant PINs</div>
-        <div class="admin-sub">Set a PIN for each participant. Share each person's PIN with them privately via Teams DM. They must enter it before submitting predictions.</div>
-        <div id="pin-mgmt-list"></div>
-        <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-          <button class="btn-primary" onclick="savePinsFromAdmin()">Save all PINs</button>
-          <button class="btn-secondary" onclick="generateAllPins()">Auto-generate PINs</button>
-          <span id="pin-save-status" style="font-size:11px;color:var(--t3);"></span>
-        </div>
-        <div style="margin-top:10px;font-size:11px;color:var(--t3);">Leave a PIN blank to allow access without a PIN for that person.</div>
-      </div>
-
-      <!-- KNOCKOUT BRACKET RESULTS -->
-      <div class="admin-card" style="border-left:3px solid var(--blue);">
-        <div class="admin-title">Knockout stage results</div>
-        <div class="admin-sub">Set team names and scores for Round of 32 through the Final. Updates the bracket view for all participants.</div>
-        <div id="ko-bracket-admin"></div>
-      </div>
-
     </div><!-- /tab-admin -->
 
   </div>
@@ -1577,16 +1574,9 @@ async function syncConfigToSheet() {
 }
 
 async function syncParticipantsToSupabase() {
-  // Delete all existing participants then reinsert
-  await sbDelete('participants', 'name=neq.null');
-  if(participants.length > 0) {
-    const rows = participants.map(name => ({
-      name,
-      fn:  participantFunctions[name] || null,
-      pin: participantPins[name]       || null,
-    }));
-    await sbFetch('participants', { method: 'POST', body: rows, prefer: 'return=minimal' });
-  }
+  // Participants are now managed via the users table (self-service auth)
+  // This function is a no-op — users table is the source of truth
+  // Admin can remove users via the delete button which deletes from users table
 }
 
 // Wrap syncConfigToSheet to also sync participants
@@ -2595,12 +2585,20 @@ function addParticipant(){
   inp.value=''; if(fnSel) fnSel.value='';
   renderChips(); renderPinMgmt(); syncAllConfig(); showToast(`${name} added & synced`);
 }
-function removeParticipant(name){
-  participants=participants.filter(p=>p!==name);
+async function removeParticipant(name){
+  if(!confirm(`Remove ${name} from the tournament? This cannot be undone.`)) return;
+  // Remove from local state
+  participants = participants.filter(p => p !== name);
   delete participantFunctions[name];
   delete participantPins[name];
+  // Delete from users table in Supabase (source of truth)
+  await sbFetch('users?name=eq.' + encodeURIComponent(name), { method: 'DELETE' });
+  // Also remove from participants table if still there
+  await sbFetch('participants?name=eq.' + encodeURIComponent(name), { method: 'DELETE' });
   syncAllConfig();
-  renderChips(); renderPinMgmt();
+  renderChips();
+  renderPinMgmt();
+  showToast(name + ' removed');
 }
 function toggleInstr(){const b=document.getElementById('instr-body'),t=document.getElementById('instr-toggle');const s=b.style.display!=='none';b.style.display=s?'none':'block';t.textContent=s?'Show setup guide':'Hide setup guide';}
 
@@ -3171,29 +3169,30 @@ async function saveKoResult() {
 
 // ── PIN MANAGEMENT (Admin) ──
 function renderPinMgmt() {
+  // PIN management is now self-service — users set their own PINs on registration
+  // This panel just shows registered users for admin visibility
   const list = document.getElementById('pin-mgmt-list');
   if(!list) return;
   list.innerHTML = '';
   if(!participants.length) {
-    list.innerHTML = '<div style="font-size:13px;color:var(--t3);padding:8px 0;">No participants yet — add them above first.</div>';
+    list.innerHTML = '<div style="font-size:13px;color:var(--t3);padding:8px 0;">No registered users yet.</div>';
     return;
   }
-  participants.forEach((name, idx) => {
+  participants.forEach(name => {
     const row = document.createElement('div');
     row.className = 'pin-mgmt-row';
     const fnKey = participantFunctions[name];
-    const fnLabel = fnKey && FUNCTIONS[fnKey] ? FUNCTIONS[fnKey].label : '';
-    row.innerHTML = `
-      <div>
-        <div class="pin-mgmt-name">${esc(name)}</div>
-        ${fnLabel ? `<div style="font-size:11px;color:var(--t3);">${esc(fnLabel)}</div>` : ''}
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <input class="pin-mgmt-input" type="text" data-pin-idx="${idx}"
-               value="${esc(participantPins[name]||'')}" maxlength="8"
-               placeholder="no pin" autocomplete="off">
-        <span style="font-size:11px;color:var(--t3);white-space:nowrap;">${participantPins[name]?'✓ set':'not set'}</span>
-      </div>`;
+    const fnLabel = fnKey && FUNCTIONS[fnKey] ? FUNCTIONS[fnKey].label : 'Unassigned';
+    const infoDiv = document.createElement('div');
+      infoDiv.innerHTML = '<div class="pin-mgmt-name">' + esc(name) + '</div>' +
+        '<div style="font-size:11px;color:var(--t3);">' + esc(fnLabel) + ' &middot; PIN set by user</div>';
+      const rmBtn = document.createElement('button');
+      rmBtn.className = 'btn-secondary';
+      rmBtn.style.cssText = 'font-size:11px;padding:5px 12px;color:var(--red-dk);border-color:var(--red-dk);';
+      rmBtn.textContent = 'Remove';
+      rmBtn.onclick = () => removeParticipant(name);
+      row.appendChild(infoDiv);
+      row.appendChild(rmBtn);
     list.appendChild(row);
   });
 }
