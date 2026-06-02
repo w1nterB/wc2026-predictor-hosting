@@ -2022,7 +2022,19 @@ function renderMatches(){
 
   /* ── UPCOMING MATCHES by view mode ── */
   if(!PHASES.groupStage) {
-    upcoming.innerHTML = '<div class="no-upcoming"><strong>Group stage not yet open</strong>Check back when the admin opens this phase.</div>';
+    // Find the first upcoming group stage match to show when predictions open
+    const firstGroupMatch = ALL_MATCHES.find(m => m.round === '1' || m.round === '2' || m.round === '3');
+    const tz = getUserTZ();
+    let openHint = '';
+    if(firstGroupMatch) {
+      const firstMatchDate = new Date(firstGroupMatch.utc);
+      // Suggest opening 4 days before first match
+      const suggestOpen = new Date(firstMatchDate.getTime() - 4 * 24 * 60 * 60 * 1000);
+      const suggestStr = suggestOpen.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', timeZone:tz});
+      const firstStr = firstMatchDate.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long', timeZone:tz});
+      openHint = `<div style="font-size:12px;color:var(--t3);margin-top:6px;">First match: ${firstStr} · Predictions usually open ~4 days before</div>`;
+    }
+    upcoming.innerHTML = `<div class="no-upcoming"><strong>Group stage predictions not yet open</strong>The admin will open this before the tournament starts.${openHint}</div>`;
   } else if(upcomingMatches.length === 0) {
     upcoming.innerHTML = '<div class="no-upcoming"><strong>All group stage matches complete</strong>Check the leaderboard for standings.</div>';
   } else {
@@ -2570,7 +2582,7 @@ function updatePhaseBadges() {
   const sb = document.getElementById('specials-phase-badge');
   const mb = document.getElementById('match-phase-badge');
   if(sb){ sb.textContent=PHASES.specials?'Open · closes 10 Jun':'Closed'; sb.className='s-badge '+(PHASES.specials?'sb-open':'sb-done'); }
-  if(mb){ mb.textContent=PHASES.groupStage?'Group stage live':'Not yet open'; mb.className='s-badge '+(PHASES.groupStage?'sb-live':'sb-done'); }
+  if(mb){ mb.textContent=PHASES.groupStage?'Group stage live':'Opening soon'; mb.className='s-badge '+(PHASES.groupStage?'sb-live':'sb-done'); }
   const sw=document.getElementById('specials-card-wrap');
   if(sw) sw.style.display=PHASES.specials?'':'none';
 
@@ -2672,7 +2684,7 @@ function renderDashboard(){
   const lb=document.createElement('div');lb.className='dash-card';
   lb.innerHTML=`<h3>Leaderboard <span style="font-size:12px;font-weight:400;color:var(--t3);margin-left:8px;">${played} result${played!==1?'s':''} in${hasSpecials?' · specials scored':''}</span></h3>`;
   const hdr=document.createElement('div');hdr.className='lb-row header';
-  const hdrCols = hasSpecials ? `<span>#</span><span>Name</span><span style="text-align:right">Match</span><span style="text-align:right">Specials</span><span style="text-align:right">Total</span><span style="text-align:right">Exact score</span>` : `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">Results ✓</span><span style="text-align:right">Exact score</span><span style="text-align:right">Played</span>`;
+  const hdrCols = hasSpecials ? `<span>#</span><span>Name</span><span style="text-align:right">Match</span><span style="text-align:right">Specials</span><span style="text-align:right">Total</span><span style="text-align:right">Exact</span>` : `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">Results ✓</span><span style="text-align:right">Exact</span><span style="text-align:right">Played</span>`;
   hdr.innerHTML=hdrCols;
   lb.appendChild(hdr);
   ranked.forEach(([name,s],i)=>{
@@ -2759,7 +2771,7 @@ function renderDashboard(){
   const topTipper=ranked[0];
   funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🎯</div><div class="fun-stat-label">Top Tipper</div><div class="fun-stat-name">${topTipper?esc(topTipper[0]):'TBD'}</div><div class="fun-stat-sub">${topTipper?topTipper[1].total+' pts':''}</div></div>`;
   const exactLeader=ranked.slice().sort((a,b)=>b[1].exact-a[1].exact)[0];
-  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🔮</div><div class="fun-stat-label">Exact Score King</div><div class="fun-stat-name">${exactLeader&&exactLeader[1].exact>0?esc(exactLeader[0]):'TBD'}</div><div class="fun-stat-sub">${exactLeader&&exactLeader[1].exact>0?exactLeader[1].exact+' exact scores':''}</div></div>`;
+  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🔮</div><div class="fun-stat-label">Exact Score Prophet</div><div class="fun-stat-name">${exactLeader&&exactLeader[1].exact>0?esc(exactLeader[0]):'TBD'}</div><div class="fun-stat-sub">${exactLeader&&exactLeader[1].exact>0?exactLeader[1].exact+' exact scores':''}</div></div>`;
   // Upset King stat hidden (kept for future use)
   const lastMs=ALL_MATCHES.filter(m=>results[m.id]).slice(-3);
   const recentPts={};participants.forEach(n=>{recentPts[n]=lastMs.reduce((s,m)=>s+scoreMatch((predictions[n]||{})[m.id],results[m.id]),0);});
@@ -2916,7 +2928,7 @@ function renderPublicPage(){
   ALL_MATCHES.forEach(m=>{
     const r=results[m.id];
     const tr=document.createElement('tr');tr.dataset.group=m.group||'';
-        const schedR=results[m.id];
+        const schedR = results[m.id] || bracketResults[m.id];
     const scoreCell = schedR
       ? `<span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--teal-mid);">${schedR.home}&thinsp;–&thinsp;${schedR.away}</span>`
       : `<span style="color:var(--t4);font-size:12px;letter-spacing:1px;">vs</span>`;
