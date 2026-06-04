@@ -911,7 +911,32 @@ select.portal-input option{background:#fff;}
   flex-shrink:0;
 }
 
+/* ── ENTERED RESULTS LIST ── */
+.entered-results-list { display:flex;flex-direction:column;gap:6px;margin-top:8px; }
+.entered-result-row {
+  display:grid;grid-template-columns:1fr auto 1fr auto;
+  align-items:center;gap:10px;
+  background:var(--page);border:1px solid var(--border);
+  border-radius:8px;padding:10px 14px;
+  font-size:13px;
+}
+.entered-result-home { font-weight:600;color:var(--t1);text-align:right; }
+.entered-result-away { font-weight:600;color:var(--t1); }
+.entered-result-score {
+  font-family:'DM Mono',monospace;font-size:16px;font-weight:700;
+  color:var(--teal-mid);white-space:nowrap;
+}
+.entered-result-edit {
+  background:none;border:1px solid var(--border-md);
+  border-radius:5px;color:var(--t3);font-size:11px;
+  padding:3px 10px;cursor:pointer;white-space:nowrap;
+  transition:all .12s;
+}
+.entered-result-edit:hover { border-color:var(--teal);color:var(--teal-mid); }
+
 </style>
+  <!-- Microsoft Teams JS SDK -->
+  <script src="https://res.cdn.office.net/teams-js/2.22.0/js/MicrosoftTeams.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
 <div class="shell">
@@ -1165,21 +1190,32 @@ select.portal-input option{background:#fff;}
 
       <!-- ENTER RESULTS -->
       <div class="admin-card" style="border-left:3px solid var(--red);">
-        <div class="admin-title">Enter match results</div>
-        <div class="admin-sub">Select a completed match and enter the final score. Points update instantly for all participants.</div>
-        <select class="portal-input" id="admin-match-select" style="max-width:420px;margin-bottom:12px;"><option value="">Select match…</option></select>
-        <div id="result-entry-area" style="display:none;">
-          <div class="res-grid">
-            <div class="res-team" id="res-team-home"></div>
-            <div class="score-pair">
-              <input class="result-input" type="number" id="res-score-home" min="0" max="20" placeholder="0">
-              <span class="res-sep">–</span>
-              <input class="result-input" type="number" id="res-score-away" min="0" max="20" placeholder="0">
+        <div class="admin-title">Match results</div>
+        <div class="admin-sub">Enter new results or edit existing ones. All changes sync to the database and update the leaderboard instantly.</div>
+
+        <!-- ADD / EDIT FORM -->
+        <div style="margin-bottom:16px;">
+          <select class="portal-input" id="admin-match-select" style="max-width:420px;margin-bottom:12px;"><option value="">Select match to add or edit…</option></select>
+          <div id="result-entry-area" style="display:none;">
+            <div class="res-grid">
+              <div class="res-team" id="res-team-home"></div>
+              <div class="score-pair">
+                <input class="result-input" type="number" id="res-score-home" min="0" max="20" placeholder="0">
+                <span class="res-sep">–</span>
+                <input class="result-input" type="number" id="res-score-away" min="0" max="20" placeholder="0">
+              </div>
+              <div class="res-team" id="res-team-away"></div>
             </div>
-            <div class="res-team" id="res-team-away"></div>
+            <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
+              <button class="btn-primary" onclick="saveResult()">Save result</button>
+              <button class="btn-secondary" id="delete-result-btn" onclick="deleteResult()" style="color:var(--red-dk);border-color:var(--red-dk);display:none;">Delete result</button>
+              <span id="result-save-status" style="font-size:11px;color:var(--t3);"></span>
+            </div>
           </div>
-          <div style="margin-top:14px;"><button class="btn-primary" onclick="saveResult()">Save result</button></div>
         </div>
+
+        <!-- ENTERED RESULTS LIST -->
+        <div id="entered-results-list"></div>
       </div>
 
       <!-- MANAGE PARTICIPANTS -->
@@ -1419,6 +1455,18 @@ create policy "anon all" on predictions  for all using (true) with check (true);
   <button class="jump-menu-item" onclick="showTab('bracket');closeJumpMenu()">Bracket</button>
 </div>
 <script>
+
+// ── MICROSOFT TEAMS INIT ──
+// Initialise Teams SDK if running inside Teams
+(function() {
+  if(window.microsoftTeams) {
+    microsoftTeams.app.initialize().then(() => {
+      microsoftTeams.app.notifyAppLoaded();
+      microsoftTeams.app.notifySuccess();
+    }).catch(() => {});
+  }
+})();
+
 // ════════════════════════════════════════════════════════════
 //  SUPABASE BACKEND LAYER
 //  Replace SUPABASE_URL and SUPABASE_ANON_KEY with your values
@@ -2644,16 +2692,89 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 async function saveResult(){
   const id=document.getElementById('admin-match-select').value;
-  const h=document.getElementById('res-score-home').value,a=document.getElementById('res-score-away').value;
+  const h=document.getElementById('res-score-home').value, a=document.getElementById('res-score-away').value;
   if(!id||h===''||a===''){showToast('Enter both scores',true);return;}
   const hInt=parseInt(h), aInt=parseInt(a);
+  const st = document.getElementById('result-save-status');
+  if(st) st.textContent = 'Saving…';
   results[id]={home:hInt,away:aInt};
   await syncResultToSheet(id, hInt, aInt);
-  renderMatches();
-  if(document.getElementById('tab-dashboard').style.display!=='none') renderDashboard();
-  showToast('Result saved & synced ✓');
+  if(st) st.textContent = '✓ Saved';
+  setTimeout(()=>{ if(st) st.textContent=''; },2000);
   document.getElementById('result-entry-area').style.display='none';
   document.getElementById('admin-match-select').value='';
+  renderMatchResultsList();
+  renderMatches();
+  if(document.getElementById('tab-dashboard').style.display!=='none') renderDashboard();
+  showToast('Result saved ✓');
+}
+
+async function deleteResult(){
+  const id = document.getElementById('admin-match-select').value;
+  if(!id) return;
+  const m = ALL_MATCHES.find(x=>x.id===id);
+  if(!confirm('Delete result for ' + (m?m.home+' v '+m.away:id) + '?')) return;
+  delete results[id];
+  // Delete from Supabase
+  await sbFetch('results?match_id=eq.' + encodeURIComponent(id), { method:'DELETE' });
+  document.getElementById('result-entry-area').style.display='none';
+  document.getElementById('admin-match-select').value='';
+  renderMatchResultsList();
+  renderMatches();
+  if(document.getElementById('tab-dashboard').style.display!=='none') renderDashboard();
+  showToast('Result deleted');
+}
+
+function renderMatchResultsList() {
+  const list = document.getElementById('entered-results-list');
+  if(!list) return;
+  const entered = ALL_MATCHES.filter(m => results[m.id]);
+  if(!entered.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--t3);padding:8px 0;">No results entered yet.</div>';
+    return;
+  }
+  list.innerHTML = '<div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">' + entered.length + ' result' + (entered.length!==1?'s':'') + ' entered</div>';
+  const wrap = document.createElement('div');
+  wrap.className = 'entered-results-list';
+  entered.forEach(m => {
+    const r = results[m.id];
+    const row = document.createElement('div');
+    row.className = 'entered-result-row';
+    row.innerHTML =
+      '<span class="entered-result-home">' + esc(m.home) + '</span>' +
+      '<span class="entered-result-score">' + r.home + ' – ' + r.away + '</span>' +
+      '<span class="entered-result-away">' + esc(m.away) + '</span>';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'entered-result-edit';
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = () => loadResultForEdit(m.id);
+    row.appendChild(editBtn);
+    wrap.appendChild(row);
+  });
+  list.appendChild(wrap);
+}
+
+function loadResultForEdit(id) {
+  const sel = document.getElementById('admin-match-select');
+  const area = document.getElementById('result-entry-area');
+  const delBtn = document.getElementById('delete-result-btn');
+  if(!sel||!area) return;
+  sel.value = id;
+  // Trigger the change event to populate team names
+  const m = ALL_MATCHES.find(x=>x.id===id);
+  if(m) {
+    document.getElementById('res-team-home').textContent = m.home;
+    document.getElementById('res-team-away').textContent = m.away;
+  }
+  const r = results[id];
+  if(r) {
+    document.getElementById('res-score-home').value = r.home;
+    document.getElementById('res-score-away').value = r.away;
+  }
+  area.style.display = 'block';
+  if(delBtn) delBtn.style.display = r ? '' : 'none';
+  // Scroll to the form
+  area.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
 function saveSheetUrl(){
@@ -2912,7 +3033,7 @@ function _doShowTab(name){
   if(name==='dashboard') renderDashboard();
   if(name==='public') renderPublicPage();
   if(name==='bracket') renderBracket();
-  if(name==='admin'){ renderPhaseToggles(); renderKoBracketAdmin(); renderPinMgmt(); }
+  if(name==='admin'){ renderPhaseToggles(); renderKoBracketAdmin(); renderPinMgmt(); renderMatchResultsList(); }
 }
 
 function renderPublicPage(){
@@ -3287,8 +3408,7 @@ async function saveKoResult() {
   }
   if(!homeTeam&&!awayTeam&&h===''&&a===''){showToast('Enter team names or scores',true);return;}
   renderBracket();
-  if(document.getElementById('tab-bracket')?.style.display!=='none') renderBracket();
-  showToast('Bracket updated');
+  showToast('Bracket updated ✓');
 }
 
 // ── PIN MANAGEMENT (Admin) ──
