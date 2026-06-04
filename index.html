@@ -3033,7 +3033,7 @@ function _doShowTab(name){
   if(name==='dashboard') renderDashboard();
   if(name==='public') renderPublicPage();
   if(name==='bracket') renderBracket();
-  if(name==='admin'){ renderPhaseToggles(); renderKoBracketAdmin(); renderPinMgmt(); renderMatchResultsList(); }
+  if(name==='admin'){ renderPhaseToggles(); renderKoBracketAdmin(); renderPinMgmt(); renderMatchResultsList(); renderKoBracketList(); }
 }
 
 function renderPublicPage(){
@@ -3325,28 +3325,49 @@ function renderKoBracketAdmin() {
   const c = document.getElementById('ko-bracket-admin');
   if(!c) return;
   c.innerHTML = '';
-  const KO_ROUNDS = ['Round of 32','Round of 16','Quarter Finals','Semi Finals','Finals'];
-  const sel = document.createElement('select');
-  sel.id = 'ko-match-sel';
-  sel.className = 'portal-input';
-  sel.style.cssText = 'max-width:420px;margin-bottom:12px;';
-  sel.innerHTML = '<option value="">Select knockout match…</option>';
-  ALL_MATCHES.filter(m=>KO_ROUNDS.includes(m.round)).forEach(m=>{
-    const o = document.createElement('option');
-    o.value = m.id;
-    o.textContent = '#'+m.num+' · '+(m.home==='To be announced'?'TBD':m.home)+' vs '+(m.away==='To be announced'?'TBD':m.away)+' ('+m.round+')';
-    sel.appendChild(o);
-  });
-  const entryArea = document.createElement('div');
-  entryArea.id = 'ko-entry-area';
-  entryArea.style.display = 'none';
 
-  // Build team options from TEAMS array
+  const KO_ROUNDS = ['Round of 32','Round of 16','Quarter Finals','Semi Finals','Finals'];
+  const koMatches = ALL_MATCHES.filter(m => KO_ROUNDS.includes(m.round));
+
+  // ── TEAM OPTIONS ──
   const teamOpts = '<option value="">— select team —</option>' +
     TEAMS.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
 
-  entryArea.innerHTML =
-    `<div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+  // ── MATCH SELECT ──
+  const selWrap = document.createElement('div');
+  selWrap.style.cssText = 'margin-bottom:14px;';
+
+  const sel = document.createElement('select');
+  sel.id = 'ko-match-sel';
+  sel.className = 'portal-input';
+  sel.style.cssText = 'max-width:460px;';
+  sel.innerHTML = '<option value="">Select knockout match to add or edit…</option>';
+
+  KO_ROUNDS.forEach(round => {
+    const matches = koMatches.filter(m => m.round === round);
+    if(!matches.length) return;
+    const grp = document.createElement('optgroup');
+    grp.label = round;
+    matches.forEach(m => {
+      const bt = bracketTeams[m.id] || {};
+      const br = bracketResults[m.id] || {};
+      const home = bt.home || (m.home !== 'To be announced' ? m.home : 'TBD');
+      const away = bt.away || (m.away !== 'To be announced' ? m.away : 'TBD');
+      const hasResult = br.home !== undefined;
+      const o = document.createElement('option');
+      o.value = m.id;
+      o.textContent = '#' + m.num + ' · ' + home + ' vs ' + away + (hasResult ? ' (' + br.home + '–' + br.away + ')' : '');
+      grp.appendChild(o);
+    });
+    sel.appendChild(grp);
+  });
+
+  // ── ENTRY AREA ──
+  const entryArea = document.createElement('div');
+  entryArea.id = 'ko-entry-area';
+  entryArea.style.display = 'none';
+  entryArea.innerHTML = `
+    <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
       <div class="field-group">
         <div class="field-label">Home team</div>
         <select class="portal-input" id="ko-team-home">${teamOpts}</select>
@@ -3365,50 +3386,167 @@ function renderKoBracketAdmin() {
       </div>
       <div class="res-team" id="ko-away"></div>
     </div>
-    <div style="font-size:11px;color:var(--t3);margin-top:6px;">Leave scores blank to just set team names without a result.</div>
-    <div style="margin-top:12px;"><button class="btn-primary" onclick="saveKoResult()">Save</button></div>`;
+    <div style="font-size:11px;color:var(--t3);margin-top:6px;">Leave scores blank to set team names only.</div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
+      <button class="btn-primary" onclick="saveKoResult()">Save</button>
+      <button class="btn-secondary" id="ko-delete-btn" onclick="deleteKoResult()" style="color:var(--red-dk);border-color:var(--red-dk);display:none;">Delete</button>
+      <span id="ko-save-status" style="font-size:11px;color:var(--t3);"></span>
+    </div>`;
+
+  // Update team labels when team dropdowns change
+  entryArea.addEventListener('change', function(e) {
+    if(e.target.id === 'ko-team-home')
+      document.getElementById('ko-home').textContent = e.target.value || 'TBD';
+    if(e.target.id === 'ko-team-away')
+      document.getElementById('ko-away').textContent = e.target.value || 'TBD';
+  });
+
   sel.onchange = function() {
-    const id=this.value, m=ALL_MATCHES.find(x=>x.id===id);
-    if(!id||!m){entryArea.style.display='none';return;}
-    const bt = bracketTeams[id]||{};
-    const homeLabel = bt.home || (m.home!=='To be announced'?m.home:'');
-    const awayLabel = bt.away || (m.away!=='To be announced'?m.away:'');
-    document.getElementById('ko-home').textContent = homeLabel||'TBD';
-    document.getElementById('ko-away').textContent = awayLabel||'TBD';
-    document.getElementById('ko-team-home').value = homeLabel;
-    document.getElementById('ko-team-away').value = awayLabel;
-    const ex = results[id]||bracketResults[id];
-    document.getElementById('ko-score-home').value = ex??(ex?.home??'');
-    document.getElementById('ko-score-away').value = ex??(ex?.away??'');
-    if(ex){ document.getElementById('ko-score-home').value=ex.home; document.getElementById('ko-score-away').value=ex.away; }
+    const id  = this.value;
+    const m   = ALL_MATCHES.find(x => x.id === id);
+    const delBtn = document.getElementById('ko-delete-btn');
+    if(!id || !m) { entryArea.style.display = 'none'; return; }
+
+    const bt = bracketTeams[id] || {};
+    const br = bracketResults[id];
+    const homeVal = bt.home || (m.home !== 'To be announced' ? m.home : '');
+    const awayVal = bt.away || (m.away !== 'To be announced' ? m.away : '');
+
+    document.getElementById('ko-home').textContent = homeVal || 'TBD';
+    document.getElementById('ko-away').textContent = awayVal || 'TBD';
+    document.getElementById('ko-team-home').value  = homeVal;
+    document.getElementById('ko-team-away').value  = awayVal;
+    document.getElementById('ko-score-home').value = br ? br.home : '';
+    document.getElementById('ko-score-away').value = br ? br.away : '';
+    if(delBtn) delBtn.style.display = (bt.home || bt.away || br) ? '' : 'none';
     entryArea.style.display = 'block';
+    document.getElementById('ko-save-status').textContent = '';
   };
-  c.appendChild(sel);
+
+  selWrap.appendChild(sel);
+  c.appendChild(selWrap);
   c.appendChild(entryArea);
+
+  // ── ENTERED BRACKET RESULTS LIST ──
+  const listTitle = document.createElement('div');
+  listTitle.id = 'ko-results-list-title';
+  listTitle.style.cssText = 'font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 8px;';
+  c.appendChild(listTitle);
+
+  const list = document.createElement('div');
+  list.id = 'ko-results-list';
+  list.className = 'entered-results-list';
+  c.appendChild(list);
+
+  renderKoBracketList();
 }
 
+function renderKoBracketList() {
+  const list  = document.getElementById('ko-results-list');
+  const title = document.getElementById('ko-results-list-title');
+  if(!list) return;
+  list.innerHTML = '';
+
+  const entered = ALL_MATCHES.filter(m =>
+    bracketTeams[m.id]?.home || bracketTeams[m.id]?.away || bracketResults[m.id]
+  );
+
+  if(title) title.textContent = entered.length
+    ? entered.length + ' bracket entry/entries saved'
+    : '';
+
+  if(!entered.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--t3);padding:4px 0;">No bracket entries yet.</div>';
+    return;
+  }
+
+  entered.forEach(m => {
+    const bt = bracketTeams[m.id]  || {};
+    const br = bracketResults[m.id];
+    const home = bt.home || 'TBD';
+    const away = bt.away || 'TBD';
+    const row  = document.createElement('div');
+    row.className = 'entered-result-row';
+    row.innerHTML =
+      '<span class="entered-result-home">' + esc(home) + '</span>' +
+      '<span class="entered-result-score">' +
+        (br !== undefined ? br.home + ' – ' + br.away : '<span style="color:var(--t3);font-size:11px;">teams only</span>') +
+      '</span>' +
+      '<span class="entered-result-away">' + esc(away) + '</span>';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'entered-result-edit';
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = () => {
+      document.getElementById('ko-match-sel').value = m.id;
+      document.getElementById('ko-match-sel').dispatchEvent(new Event('change'));
+      document.getElementById('ko-match-sel').scrollIntoView({ behavior:'smooth', block:'nearest' });
+    };
+    row.appendChild(editBtn);
+    list.appendChild(row);
+  });
+}
+
+
 async function saveKoResult() {
-  const sel = document.getElementById('ko-match-sel');
-  if(!sel) return;
-  const id = sel.value;
+  const id = document.getElementById('ko-match-sel')?.value;
   if(!id){showToast('Select a match first',true);return;}
   const homeTeam = document.getElementById('ko-team-home')?.value.trim();
   const awayTeam = document.getElementById('ko-team-away')?.value.trim();
   const h = document.getElementById('ko-score-home')?.value;
   const a = document.getElementById('ko-score-away')?.value;
-  // Save team names if provided
-  if(homeTeam||awayTeam){
-    bracketTeams[id] = {home:homeTeam||'', away:awayTeam||''};
-    saveBracketTeams();
+
+  if(!homeTeam && !awayTeam && h==='' && a===''){
+    showToast('Enter team names or scores',true);return;
   }
-  // Save scores if provided
-  if(h!==''&&a!==''){
-    bracketResults[id] = {home:parseInt(h), away:parseInt(a)};
-    saveBracketResults();
+
+  const st = document.getElementById('ko-save-status');
+  if(st) st.textContent = 'Saving…';
+
+  if(homeTeam || awayTeam) {
+    bracketTeams[id] = { home: homeTeam||'', away: awayTeam||'' };
   }
-  if(!homeTeam&&!awayTeam&&h===''&&a===''){showToast('Enter team names or scores',true);return;}
+  if(h !== '' && a !== '') {
+    bracketResults[id] = { home: parseInt(h), away: parseInt(a) };
+  }
+
+  await syncBracketToSheet();
+
+  if(st) { st.textContent = '✓ Saved'; setTimeout(()=>{ if(st) st.textContent=''; },2000); }
+
+  // Refresh the dropdown option text
+  const opt = document.querySelector('#ko-match-sel option[value="' + id + '"]');
+  if(opt) {
+    const m = ALL_MATCHES.find(x=>x.id===id);
+    const bt = bracketTeams[id]||{};
+    const br = bracketResults[id];
+    const home = bt.home || (m?.home!=='To be announced'?m?.home:'TBD');
+    const away = bt.away || (m?.away!=='To be announced'?m?.away:'TBD');
+    opt.textContent = '#'+(m?.num||'?')+' · '+home+' vs '+away+(br?' ('+br.home+'–'+br.away+')':'');
+  }
+
+  renderKoBracketList();
   renderBracket();
   showToast('Bracket updated ✓');
+}
+
+async function deleteKoResult() {
+  const id = document.getElementById('ko-match-sel')?.value;
+  if(!id) return;
+  const m = ALL_MATCHES.find(x=>x.id===id);
+  const name = (bracketTeams[id]?.home||m?.home||'?')+' v '+(bracketTeams[id]?.away||m?.away||'?');
+  if(!confirm('Delete bracket entry for '+name+'?')) return;
+
+  delete bracketTeams[id];
+  delete bracketResults[id];
+
+  // Delete from Supabase
+  await sbFetch('bracket?match_id=eq.'+encodeURIComponent(id), { method:'DELETE' });
+
+  document.getElementById('ko-entry-area').style.display = 'none';
+  document.getElementById('ko-match-sel').value = '';
+  renderKoBracketList();
+  renderBracket();
+  showToast('Bracket entry deleted');
 }
 
 // ── PIN MANAGEMENT (Admin) ──
