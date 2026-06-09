@@ -1107,7 +1107,7 @@ select.portal-input option{background:#fff;}
       <div id="predictions-content">
 
       <div class="page-section">
-        <div class="section-label">Pre-tournament specials <span class="s-badge sb-open" id="specials-phase-badge">Open · Closes after Round 1 (18th June)</span></div>
+        <div class="section-label">Pre-tournament specials <span class="s-badge sb-open" id="specials-phase-badge">Open · closes 18 Jun</span></div>
         <div id="specials-card-wrap"><div class="card">
           <div class="card-title">Tournament predictions</div>
           <div class="card-sub">Submit once before 18 June. These are worth the most points.</div>
@@ -2010,12 +2010,14 @@ function isMatchLocked(matchId) {
 
 // ── MATCH VIEW STATE ──
 let matchViewMode = localStorage.getItem('matchView') || 'next'; // 'round' | 'group' | 'upcoming7'
-function setMatchView(mode,btn){
-  matchViewMode=mode;
-  localStorage.setItem('matchView',mode);
-  document.querySelectorAll('.view-mode-btn').forEach(b=>b.classList.remove('active'));
+let _renderDebounce = null;
+function setMatchView(mode, btn) {
+  matchViewMode = mode;
+  localStorage.setItem('matchView', mode);
+  document.querySelectorAll('.view-mode-btn').forEach(b => b.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  renderMatches();
+  if(_renderDebounce) clearTimeout(_renderDebounce);
+  _renderDebounce = setTimeout(() => { renderMatches(); _renderDebounce = null; }, 60);
 }
 
 const FUNCTIONS = {
@@ -2462,7 +2464,9 @@ function renderUpcoming7(container, matches) {
                       '<span style="font-size:11px;color:var(--t3);margin-left:8px;">' + dayMatches.length + ' match' + (dayMatches.length!==1?'es':'') + '</span>' +
                       '<hr>';
       container.appendChild(hdr);
-      dayMatches.forEach(m => container.appendChild(buildMatchCard(m, false, true)));
+      const frag7 = document.createDocumentFragment();
+      dayMatches.forEach(m => frag7.appendChild(buildMatchCard(m, false, true)));
+      container.appendChild(frag7);
     });
   }
 
@@ -2702,9 +2706,24 @@ function unlockPredictions(name) {
   if(nameLabel) nameLabel.textContent = name;
 }
 function loadPredictions(name){
-  const p=predictions[name];if(!p)return;
-  if(p.specials){['winner','runnerup','topscorer','surprise','sf1','sf2','sf3','sf4'].forEach(k=>{const el=document.getElementById(`s-${k}`);if(el&&p.specials[k])el.value=p.specials[k];});}
-  ALL_MATCHES.forEach(m=>{const pr=p[m.id];if(!pr)return;const h=document.getElementById(`h-${m.id}`),a=document.getElementById(`a-${m.id}`);if(h&&pr.home!==undefined)h.value=pr.home;if(a&&pr.away!==undefined)a.value=pr.away;});
+  const p = predictions[name]; if(!p) return;
+  // Specials
+  if(p.specials){
+    ['winner','runnerup','topscorer','surprise','sf1','sf2','sf3','sf4'].forEach(k=>{
+      const el=document.getElementById('s-'+k);
+      if(el && p.specials[k]) el.value=p.specials[k];
+    });
+  }
+  // Only update VISIBLE score inputs — querySelector is far faster than 104x getElementById
+  document.querySelectorAll('.score-input[id^="h-"]').forEach(input => {
+    const matchId = input.id.slice(2); // strip "h-"
+    const pr = p[matchId];
+    if(pr && pr.home !== undefined) {
+      input.value = pr.home;
+      const away = document.getElementById('a-'+matchId);
+      if(away && pr.away !== undefined) away.value = pr.away;
+    }
+  });
 }
 
 function clearInputs(){
@@ -2979,7 +2998,7 @@ function renderPhaseToggles() {
 function updatePhaseBadges() {
   const sb = document.getElementById('specials-phase-badge');
   const mb = document.getElementById('match-phase-badge');
-  if(sb){ sb.textContent=PHASES.specials?'Open · closes 10 Jun':'Closed'; sb.className='s-badge '+(PHASES.specials?'sb-open':'sb-done'); }
+  if(sb){ sb.textContent=PHASES.specials?'Open · closes 18 Jun':'Closed'; sb.className='s-badge '+(PHASES.specials?'sb-open':'sb-done'); }
   if(mb){ mb.textContent=PHASES.groupStage?'Group stage live':'Opening soon'; mb.className='s-badge '+(PHASES.groupStage?'sb-live':'sb-done'); }
   const sw=document.getElementById('specials-card-wrap');
   if(sw) sw.style.display=PHASES.specials?'':'none';
@@ -3253,7 +3272,7 @@ function renderPublicPage(){
       <div style="display:flex;flex-direction:column;gap:14px;">
         <div class="pub-group-card">
           <div class="pub-group-name">Pre-tournament specials</div>
-          <div style="font-size:13px;color:var(--t2);line-height:1.8;margin-bottom:10px;">Submit once before the tournament starts. These lock on 10 June.</div>
+          <div style="font-size:13px;color:var(--t2);line-height:1.8;margin-bottom:10px;">Submit once before the tournament starts. These lock on 18 June.</div>
           <div style="display:flex;flex-direction:column;gap:6px;">
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Tournament winner</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">10 pts</span></div>
             <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Runner-up</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">7 pts</span></div>
