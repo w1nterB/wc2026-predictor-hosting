@@ -4022,8 +4022,7 @@ function finishInit() {
   });
 }
 
-// 3. Kick off — loads all state from Supabase, then calls finishInit()
-initApp();
+// 3. initApp() not used in admin — initAdmin() is called after PIN entry
 
 function savePhases()          { syncAllConfig(); }
 function saveParticipantPins() { syncAllConfig(); }
