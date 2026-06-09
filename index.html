@@ -2811,68 +2811,66 @@ function renderNextMatch(container, matches) {
     (nextBatch.length > 1 ? nextBatch.length + ' matches' : 'match') + '</span>' +
     '<span style="font-size:11px;color:var(--t3);margin-left:8px;">' + timeStr + '</span><hr>';
   container.appendChild(hdr);
-  nextBatch.forEach(m => container.appendChild(buildMatchCard(m, false, true)));
+  nextBatch.forEach(m => container.appendChild(buildMatchCard(m, false, false)));
 
   // Show a DYK card
   const dykIdx = new Date().getDate() + nextBatch.length; // changes daily
   const dykCard = buildDYKCard(dykIdx);
   if(dykCard) container.appendChild(dykCard);
 
-  // ── PREDICT ANOTHER MATCH button ──
-  const remaining = upcoming.length - nextBatch.length;
-  if(remaining > 0) {
-    const afterCurrent = upcoming.filter(m =>
-      new Date(m.utc).getTime() > nextTime + 2 * 60 * 60 * 1000
-    );
-    if(afterCurrent.length > 0) {
-      const nextNextTime  = Math.min(...afterCurrent.map(m => new Date(m.utc).getTime()));
-      const nextNextBatch = afterCurrent.filter(m =>
-        new Date(m.utc).getTime() <= nextNextTime + 2 * 60 * 60 * 1000
-      );
-      const nextTimeStr = new Date(nextNextTime).toLocaleString('en-GB',{
-        weekday:'short',day:'numeric',month:'short',
-        hour:'2-digit',minute:'2-digit',timeZone:tz,timeZoneName:'short'
-      });
+  // ── PREDICT ANOTHER MATCH — recursive, keeps going through all slots ──
+  appendPredictMoreButton(container, upcoming, nextTime, tz);
+}
 
-      const moreBtn = document.createElement('button');
-      moreBtn.className = 'view-all-btn';
-      moreBtn.style.cssText = 'margin-top:14px;width:100%;justify-content:center;gap:8px;';
-      moreBtn.innerHTML =
-        '⚽ Predict another match · ' +
-        '<span style="color:var(--teal-mid);font-size:11px;">' +
-          nextNextBatch.length + ' match' + (nextNextBatch.length!==1?'es':'') +
-          ' · ' + nextTimeStr +
-        '</span>' +
-        ' <span class="chevron">▼</span>';
+function appendPredictMoreButton(container, allUpcoming, afterTime, tz) {
+  const after = allUpcoming.filter(m =>
+    new Date(m.utc).getTime() > afterTime + 2 * 60 * 60 * 1000
+  );
+  if(!after.length) return;
 
-      const nextDiv = document.createElement('div');
-      nextDiv.style.display = 'none';
+  const slotTime  = Math.min(...after.map(m => new Date(m.utc).getTime()));
+  const slotBatch = after.filter(m =>
+    new Date(m.utc).getTime() <= slotTime + 2 * 60 * 60 * 1000
+  );
+  const slotStr = new Date(slotTime).toLocaleString('en-GB', {
+    weekday:'short', day:'numeric', month:'short',
+    hour:'2-digit', minute:'2-digit', timeZone:tz, timeZoneName:'short'
+  });
 
+  const btn = document.createElement('button');
+  btn.className = 'view-all-btn';
+  btn.style.cssText = 'margin-top:12px;width:100%;justify-content:center;gap:8px;font-weight:700;';
+  btn.innerHTML =
+    '⚽ Predict another match &nbsp;' +
+    '<span style="background:rgba(37,196,179,.1);color:var(--teal-mid);border-radius:10px;padding:2px 10px;font-size:11px;">' +
+      slotBatch.length + ' match' + (slotBatch.length !== 1 ? 'es' : '') + ' · ' + slotStr +
+    '</span>' +
+    ' <span class="chevron">▼</span>';
+
+  const slotDiv = document.createElement('div');
+  slotDiv.style.display = 'none';
+
+  btn.onclick = () => {
+    const open = slotDiv.style.display !== 'none';
+    if(!open && !btn.dataset.built) {
+      // Lazy-build this slot's content
+      btn.dataset.built = '1';
       const hdr = document.createElement('div');
       hdr.className = 'group-header';
       hdr.innerHTML =
-        '<span class="group-badge" style="background:var(--teal);">Next up</span>' +
-        '<span style="font-size:11px;color:var(--t3);margin-left:8px;">' + nextTimeStr + '</span><hr>';
-      nextDiv.appendChild(hdr);
-      nextNextBatch.forEach(m => nextDiv.appendChild(buildMatchCard(m, false, false)));
-
-      const moreAfter = remaining - nextNextBatch.length;
-      if(moreAfter > 0) {
-        const moreHint = document.createElement('div');
-        moreHint.style.cssText = 'font-size:12px;color:var(--t3);padding:10px 0 4px;text-align:center;';
-        moreHint.textContent = moreAfter + ' more upcoming — switch to "Next 7 days" to see all';
-        nextDiv.appendChild(moreHint);
-      }
-
-      moreBtn.onclick = () => {
-        const open = nextDiv.style.display !== 'none';
-        nextDiv.style.display = open ? 'none' : 'block';
-        moreBtn.classList.toggle('open', !open);
-      };
-      container.appendChild(moreBtn);
-      container.appendChild(nextDiv);
+        '<span class="group-badge" style="background:var(--teal);">Next up · ' + slotStr + '</span><hr>';
+      slotDiv.appendChild(hdr);
+      // Build match cards for this slot
+      slotBatch.forEach(m => slotDiv.appendChild(buildMatchCard(m, false, false)));
+      // Recursively add another button for the NEXT slot
+      appendPredictMoreButton(slotDiv, allUpcoming, slotTime, tz);
     }
-  }
+    slotDiv.style.display = open ? 'none' : 'block';
+    btn.classList.toggle('open', !open);
+  };
+
+  container.appendChild(btn);
+  container.appendChild(slotDiv);
 }
 
 function renderByCountry(container, matches) {
