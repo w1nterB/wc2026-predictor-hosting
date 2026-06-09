@@ -436,7 +436,7 @@ select.portal-input option{background:#fff;}
 .dash-card p.sub{font-size:14px;color:var(--t3);margin-bottom:14px;}
 
 /* leaderboard */
-.lb-row{display:grid;grid-template-columns:36px 1fr 56px 56px 60px 56px 48px;align-items:center;gap:4px;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px;}
+.lb-row{display:grid;grid-template-columns:32px 1fr 52px 52px 58px 52px 44px;align-items:center;gap:3px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
 .lb-row:last-child{border-bottom:none;}
 .lb-row.header{color:var(--t3);font-size:14px;text-transform:uppercase;letter-spacing:.8px;padding-bottom:8px;font-family:'DM Mono',monospace;}
 .rank-no{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;font-family:'DM Mono',monospace;}
@@ -1131,7 +1131,7 @@ select.portal-input option{background:#fff;}
 
       <div class="page-section">
         <div class="section-label">Match predictions <span class="s-badge sb-live" id="match-phase-badge">Group stage live</span></div>
-        <div style="font-size:11px;color:var(--t3);margin-bottom:14px;">Pick the score for each match — <strong style="color:var(--teal-mid);">3 pts</strong> for correct result · <strong style="color:var(--teal-mid);">6 pts</strong> for exact score · <strong style="color:var(--teal-mid);">9 pts max</strong> per game · locks 1 hr before kickoff</div>
+        <div style="font-size:11px;color:var(--t3);margin-bottom:14px;">Pick the score for each match — <strong style="color:var(--teal-mid);">3 pts</strong> for correct result · <strong style="color:var(--teal-mid);">6 pts</strong> for exact score · <strong style="color:var(--teal-mid);">9 pts max</strong> per game · locks 1 hr before kickoff · specials close 18 Jun</div>
 
         <div class="view-mode-bar">
           <span style="font-size:11px;font-weight:700;color:var(--t3);margin-right:4px;">View by</span>
@@ -1143,7 +1143,7 @@ select.portal-input option{background:#fff;}
           <button class="view-mode-btn" onclick="setMatchView('all',this)">All matches</button>
         </div>
 
-        <div class="filter-bar">
+        <div class="filter-bar" id="group-filter-row">
           <span class="filter-bar-label">Group</span>
           <button class="filter-chip active" onclick="setGroupFilter('all',this)">All</button>
           <button class="filter-chip" onclick="setGroupFilter('A',this)">A</button><button class="filter-chip" onclick="setGroupFilter('B',this)">B</button><button class="filter-chip" onclick="setGroupFilter('C',this)">C</button><button class="filter-chip" onclick="setGroupFilter('D',this)">D</button><button class="filter-chip" onclick="setGroupFilter('E',this)">E</button><button class="filter-chip" onclick="setGroupFilter('F',this)">F</button><button class="filter-chip" onclick="setGroupFilter('G',this)">G</button><button class="filter-chip" onclick="setGroupFilter('H',this)">H</button><button class="filter-chip" onclick="setGroupFilter('I',this)">I</button><button class="filter-chip" onclick="setGroupFilter('J',this)">J</button><button class="filter-chip" onclick="setGroupFilter('K',this)">K</button><button class="filter-chip" onclick="setGroupFilter('L',this)">L</button>
@@ -2016,6 +2016,7 @@ function setMatchView(mode, btn) {
   localStorage.setItem('matchView', mode);
   document.querySelectorAll('.view-mode-btn').forEach(b => b.classList.remove('active'));
   if(btn) btn.classList.add('active');
+  applyFilters();
   if(_renderDebounce) clearTimeout(_renderDebounce);
   _renderDebounce = setTimeout(() => { renderMatches(); _renderDebounce = null; }, 60);
 }
@@ -2064,6 +2065,9 @@ function setGroupFilter(group, btn) {
 }
 
 function applyFilters() {
+  // Show group filter bar only in Group view
+  const gfr = document.getElementById('group-filter-row');
+  if(gfr) gfr.style.display = matchViewMode === 'group' ? '' : 'none';
   const search = (document.getElementById('team-search')?.value || '').toLowerCase().trim();
   let visible = 0;
   const container = document.getElementById('matches-container');
@@ -2377,9 +2381,11 @@ function appendPredictMoreButton(container, allUpcoming, afterTime, tz) {
 function renderByCountry(container, matches) {
   // Build a search/select UI — find all teams and their matches
   const teamMatches = {};
+  // Only include group stage teams (exclude KO placeholders like 1A, 2B, 3CEFHI)
+  const isPlaceholder = t => !t || t === 'To be announced' || /^[1-4][A-Z]{1,8}$/.test(t.trim());
   matches.forEach(m => {
     [m.home, m.away].forEach(team => {
-      if(!team || team === 'To be announced') return;
+      if(isPlaceholder(team)) return;
       if(!teamMatches[team]) teamMatches[team] = [];
       teamMatches[team].push(m);
     });
@@ -2431,6 +2437,31 @@ function renderUpcoming7(container, matches) {
   const week  = matches.filter(m => new Date(m.utc) <= in7);
   const later = matches.filter(m => new Date(m.utc) > in7);
 
+  // Preview toggle button (off by default for performance)
+  let previewsEnabled = false;
+  const toggleWrap = document.createElement('div');
+  toggleWrap.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:12px;';
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'btn-secondary';
+  toggleBtn.style.cssText = 'font-size:11px;padding:5px 14px;display:flex;align-items:center;gap:6px;';
+  toggleBtn.innerHTML = '📊 Show H2H &amp; facts';
+  toggleBtn.onclick = () => {
+    previewsEnabled = !previewsEnabled;
+    toggleBtn.innerHTML = previewsEnabled ? '📊 Hide H2H &amp; facts' : '📊 Show H2H &amp; facts';
+    toggleBtn.style.borderColor = previewsEnabled ? 'var(--teal)' : '';
+    toggleBtn.style.color = previewsEnabled ? 'var(--teal-mid)' : '';
+    // Re-render with/without previews
+    container.innerHTML = '';
+    container.appendChild(toggleWrap);
+    renderUpcoming7Body(container, week, later, tz, now, previewsEnabled);
+  };
+  toggleWrap.appendChild(toggleBtn);
+  container.appendChild(toggleWrap);
+  renderUpcoming7Body(container, week, later, tz, now, previewsEnabled);
+}
+
+function renderUpcoming7Body(container, week, later, tz, now, showPreviews) {
+
   if(!week.length && !later.length) {
     container.innerHTML = '<div class="no-upcoming"><strong>No upcoming matches right now</strong>Check back soon.</div>';
     return;
@@ -2465,7 +2496,7 @@ function renderUpcoming7(container, matches) {
                       '<hr>';
       container.appendChild(hdr);
       const frag7 = document.createDocumentFragment();
-      dayMatches.forEach(m => frag7.appendChild(buildMatchCard(m, false, true)));
+      dayMatches.forEach(m => frag7.appendChild(buildMatchCard(m, false, !showPreviews)));
       container.appendChild(frag7);
     });
   }
@@ -3102,8 +3133,8 @@ function renderDashboard(){
   lb.innerHTML=`<h3>Leaderboard <span style="font-size:12px;font-weight:400;color:var(--t3);margin-left:8px;">${played} result${played!==1?'s':''} in${hasSpecials?' · specials scored':''}</span></h3>`;
   const hdr=document.createElement('div');hdr.className='lb-row header';
   const hdrCols = hasSpecials
-    ? `<span>#</span><span>Name</span><span style="text-align:right">Match</span><span style="text-align:right">Spec.</span><span style="text-align:right">Total</span><span style="text-align:right">Predicted</span><span style="text-align:right">Exact</span>`
-    : `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">Predicted</span><span style="text-align:right">Exact</span><span style="text-align:right">Missed</span>`;
+    ? `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">+Spc</span><span style="text-align:right">Tot</span><span style="text-align:right">Pred</span><span style="text-align:right">✓✓</span>`
+    : `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">Pred</span><span style="text-align:right">✓✓</span><span style="text-align:right">Miss</span>`;
   hdr.innerHTML=hdrCols;
   lb.appendChild(hdr);
   ranked.forEach(([name,s],i)=>{
@@ -4091,13 +4122,15 @@ function onLoginSuccess(user) {
   const bar = document.getElementById('sticky-submit-bar');
   if(bar) bar.style.display = '';
 
-  // Default to upcoming7 view for a clean experience
+  // Set default view to Next Match and re-render AFTER everything is set
   matchViewMode = 'next';
   localStorage.setItem('matchView', 'next');
   document.querySelectorAll('.view-mode-btn').forEach(btn => {
     const map = {'Next match':'next','Next 7 days':'upcoming7','Matchday':'round','Group':'group','By country':'country','All matches':'all'};
-    btn.classList.toggle('active', map[btn.textContent.trim()] === 'upcoming7');
+    btn.classList.toggle('active', map[btn.textContent.trim()] === 'next');
   });
+  // Re-render now that view mode and user are both set
+  renderMatches();
 
   showToast('Welcome back, ' + user.name + '! 👋');
 }
