@@ -436,7 +436,7 @@ select.portal-input option{background:#fff;}
 .dash-card p.sub{font-size:14px;color:var(--t3);margin-bottom:14px;}
 
 /* leaderboard */
-.lb-row{display:grid;grid-template-columns:36px 1fr 60px 64px 60px 56px;align-items:center;gap:4px;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px;}
+.lb-row{display:grid;grid-template-columns:36px 1fr 56px 56px 60px 56px 48px;align-items:center;gap:4px;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px;}
 .lb-row:last-child{border-bottom:none;}
 .lb-row.header{color:var(--t3);font-size:14px;text-transform:uppercase;letter-spacing:.8px;padding-bottom:8px;font-family:'DM Mono',monospace;}
 .rank-no{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;font-family:'DM Mono',monospace;}
@@ -3101,17 +3101,37 @@ function renderDashboard(){
   const lb=document.createElement('div');lb.className='dash-card';
   lb.innerHTML=`<h3>Leaderboard <span style="font-size:12px;font-weight:400;color:var(--t3);margin-left:8px;">${played} result${played!==1?'s':''} in${hasSpecials?' · specials scored':''}</span></h3>`;
   const hdr=document.createElement('div');hdr.className='lb-row header';
-  const hdrCols = hasSpecials ? `<span>#</span><span>Name</span><span style="text-align:right">Match</span><span style="text-align:right">Spec.</span><span style="text-align:right">Total</span><span style="text-align:right">Exact</span>` : `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">Results ✓</span><span style="text-align:right">Exact</span><span style="text-align:right">Played</span>`;
+  const hdrCols = hasSpecials
+    ? `<span>#</span><span>Name</span><span style="text-align:right">Match</span><span style="text-align:right">Spec.</span><span style="text-align:right">Total</span><span style="text-align:right">Predicted</span><span style="text-align:right">Exact</span>`
+    : `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">Predicted</span><span style="text-align:right">Exact</span><span style="text-align:right">Missed</span>`;
   hdr.innerHTML=hdrCols;
   lb.appendChild(hdr);
   ranked.forEach(([name,s],i)=>{
     const rankClass=i===0?'gold':i===1?'silver':i===2?'bronze':'';
     const row=document.createElement('div');row.className='lb-row';
-    if(hasSpecials){
-      const matchPts=s.total-s.specials;
-      row.innerHTML=`<span class="rank ${rankClass}">${i+1}</span><span class="lb-name">${esc(name)}</span><span class="lb-pts">${matchPts}</span><span class="lb-pts" style="color:var(--amber-dk)">${s.specials>0?'+'+s.specials:'—'}</span><span class="lb-pts total">${s.total}</span><span class="lb-pts">${s.exact}</span>`;
+    const matchPts   = s.total - s.specials;
+    const predCell   = s.played > 0
+      ? `${s.predicted}<span style="font-size:10px;color:var(--t3);">/${s.played}</span>`
+      : '—';
+    const missedCell = s.missed > 0
+      ? `<span style="color:var(--red-dk);">${s.missed}</span>`
+      : '<span style="color:var(--green-dk);">✓</span>';
+
+    if(hasSpecials) {
+      row.innerHTML = `<span class="rank ${rankClass}">${i+1}</span>` +
+        `<span class="lb-name">${esc(name)}</span>` +
+        `<span class="lb-pts">${matchPts}</span>` +
+        `<span class="lb-pts" style="color:var(--amber-dk)">${s.specials>0?'+'+s.specials:'—'}</span>` +
+        `<span class="lb-pts total">${s.total}</span>` +
+        `<span class="lb-pts">${predCell}</span>` +
+        `<span class="lb-pts">${s.exact}</span>`;
     } else {
-      row.innerHTML=`<span class="rank ${rankClass}">${i+1}</span><span class="lb-name">${esc(name)}</span><span class="lb-pts total">${s.total}</span><span class="lb-pts">${s.correct}</span><span class="lb-pts">${s.exact}</span><span class="lb-pts">${s.played}</span>`;
+      row.innerHTML = `<span class="rank ${rankClass}">${i+1}</span>` +
+        `<span class="lb-name">${esc(name)}</span>` +
+        `<span class="lb-pts total">${s.total}</span>` +
+        `<span class="lb-pts">${predCell}</span>` +
+        `<span class="lb-pts">${s.exact}</span>` +
+        `<span class="lb-pts">${missedCell}</span>`;
     }
     lb.appendChild(row);
     const barRow=document.createElement('div');barRow.className='lb-row';barRow.style.cssText='padding-top:0;padding-bottom:10px;';
