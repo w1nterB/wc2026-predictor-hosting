@@ -2621,7 +2621,7 @@ function populateTeamSelects(){
 }
 
 /* Build a single match card element */
-function buildMatchCard(m, forceDisabled) {
+function buildMatchCard(m, forceDisabled, skipPreview) {
   const hr = !!results[m.id];
   const locked = hr || isMatchLocked(m.id) || forceDisabled;
   const card = document.createElement('div');
@@ -2637,8 +2637,8 @@ function buildMatchCard(m, forceDisabled) {
   const aStar = userWinner===m.away ? `<span class="winner-star" title="Your predicted winner">★</span>` : '';
   const hf = m.hf||''; const af = m.af||'';
   card.innerHTML = `<div class="team-side"><span class="team-flag">${hf}</span><span class="team-name">${m.home}${hStar}</span></div><div class="match-meta"><div class="match-time">${timeStr}</div>${scoreDisplay}</div><div class="team-side right"><span class="team-name">${m.away}${aStar}</span><span class="team-flag">${af}</span></div><div class="prediction-row"><div class="score-input-wrap" style="justify-content:flex-start;"><label>${m.home}</label><input class="score-input" id="h-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}></div><span class="score-sep">&ndash;</span><div class="score-input-wrap" style="justify-content:flex-end;"><input class="score-input" id="a-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}><label>${m.away}</label></div></div>`;
-  // Wrap with preview panel for group stage matches
-  if(m.round === '1' || m.round === '2' || m.round === '3') {
+  // Add preview panel for group stage matches (skip in bulk views for performance)
+  if(!skipPreview && (m.round === '1' || m.round === '2' || m.round === '3')) {
     const preview = buildPreviewPanel(m.id);
     if(preview) {
       const wrapper = document.createElement('div');
@@ -2772,7 +2772,7 @@ function renderByGroup(container, matches) {
     gh.className = 'group-header';
     gh.innerHTML = `<span class="group-badge">${g.name}</span><hr>`;
     container.appendChild(gh);
-    gm.forEach(m => container.appendChild(buildMatchCard(m, false)));
+    gm.forEach(m => container.appendChild(buildMatchCard(m, false, true)));
   });
 }
 
@@ -2790,7 +2790,7 @@ function renderNextMatch(container, matches) {
     hdr.className = 'group-header';
     hdr.innerHTML = '<span class="group-badge" style="background:var(--navy);">Tournament complete</span><hr>';
     container.appendChild(hdr);
-    (lastBatch.length ? lastBatch : played.slice(-3)).forEach(m => container.appendChild(buildMatchCard(m, false)));
+    (lastBatch.length ? lastBatch : played.slice(-3)).forEach(m => container.appendChild(buildMatchCard(m, false, true)));
     return;
   }
 
@@ -2811,20 +2811,67 @@ function renderNextMatch(container, matches) {
     (nextBatch.length > 1 ? nextBatch.length + ' matches' : 'match') + '</span>' +
     '<span style="font-size:11px;color:var(--t3);margin-left:8px;">' + timeStr + '</span><hr>';
   container.appendChild(hdr);
-  nextBatch.forEach(m => container.appendChild(buildMatchCard(m, false)));
+  nextBatch.forEach(m => container.appendChild(buildMatchCard(m, false, true)));
 
   // Show a DYK card
   const dykIdx = new Date().getDate() + nextBatch.length; // changes daily
   const dykCard = buildDYKCard(dykIdx);
   if(dykCard) container.appendChild(dykCard);
 
-  // Show a hint about how many more are coming
+  // ── PREDICT ANOTHER MATCH button ──
   const remaining = upcoming.length - nextBatch.length;
   if(remaining > 0) {
-    const hint = document.createElement('div');
-    hint.style.cssText = 'font-size:12px;color:var(--t3);padding:10px 0 4px;text-align:center;';
-    hint.textContent = remaining + ' more upcoming match' + (remaining!==1?'es':'') + ' — switch to "Next 7 days" or "All matches" to see them';
-    container.appendChild(hint);
+    const afterCurrent = upcoming.filter(m =>
+      new Date(m.utc).getTime() > nextTime + 2 * 60 * 60 * 1000
+    );
+    if(afterCurrent.length > 0) {
+      const nextNextTime  = Math.min(...afterCurrent.map(m => new Date(m.utc).getTime()));
+      const nextNextBatch = afterCurrent.filter(m =>
+        new Date(m.utc).getTime() <= nextNextTime + 2 * 60 * 60 * 1000
+      );
+      const nextTimeStr = new Date(nextNextTime).toLocaleString('en-GB',{
+        weekday:'short',day:'numeric',month:'short',
+        hour:'2-digit',minute:'2-digit',timeZone:tz,timeZoneName:'short'
+      });
+
+      const moreBtn = document.createElement('button');
+      moreBtn.className = 'view-all-btn';
+      moreBtn.style.cssText = 'margin-top:14px;width:100%;justify-content:center;gap:8px;';
+      moreBtn.innerHTML =
+        '⚽ Predict another match · ' +
+        '<span style="color:var(--teal-mid);font-size:11px;">' +
+          nextNextBatch.length + ' match' + (nextNextBatch.length!==1?'es':'') +
+          ' · ' + nextTimeStr +
+        '</span>' +
+        ' <span class="chevron">▼</span>';
+
+      const nextDiv = document.createElement('div');
+      nextDiv.style.display = 'none';
+
+      const hdr = document.createElement('div');
+      hdr.className = 'group-header';
+      hdr.innerHTML =
+        '<span class="group-badge" style="background:var(--teal);">Next up</span>' +
+        '<span style="font-size:11px;color:var(--t3);margin-left:8px;">' + nextTimeStr + '</span><hr>';
+      nextDiv.appendChild(hdr);
+      nextNextBatch.forEach(m => nextDiv.appendChild(buildMatchCard(m, false, false)));
+
+      const moreAfter = remaining - nextNextBatch.length;
+      if(moreAfter > 0) {
+        const moreHint = document.createElement('div');
+        moreHint.style.cssText = 'font-size:12px;color:var(--t3);padding:10px 0 4px;text-align:center;';
+        moreHint.textContent = moreAfter + ' more upcoming — switch to "Next 7 days" to see all';
+        nextDiv.appendChild(moreHint);
+      }
+
+      moreBtn.onclick = () => {
+        const open = nextDiv.style.display !== 'none';
+        nextDiv.style.display = open ? 'none' : 'block';
+        moreBtn.classList.toggle('open', !open);
+      };
+      container.appendChild(moreBtn);
+      container.appendChild(nextDiv);
+    }
   }
 }
 
@@ -2918,7 +2965,7 @@ function renderUpcoming7(container, matches) {
                       '<span style="font-size:11px;color:var(--t3);margin-left:8px;">' + dayMatches.length + ' match' + (dayMatches.length!==1?'es':'') + '</span>' +
                       '<hr>';
       container.appendChild(hdr);
-      dayMatches.forEach(m => container.appendChild(buildMatchCard(m, false)));
+      dayMatches.forEach(m => container.appendChild(buildMatchCard(m, false, true)));
     });
   }
 
@@ -2943,7 +2990,7 @@ function renderUpcoming7(container, matches) {
       hdr.className = 'group-header';
       hdr.innerHTML = '<span class="group-badge" style="background:var(--navy-mid);">' + day + '</span><hr>';
       laterDiv.appendChild(hdr);
-      dayMatches.forEach(m => laterDiv.appendChild(buildMatchCard(m, false)));
+      dayMatches.forEach(m => laterDiv.appendChild(buildMatchCard(m, false, true)));
     });
 
     btn.onclick = () => {
@@ -4585,77 +4632,62 @@ function buildPreviewPanel(matchId) {
   const panel = document.createElement('div');
   panel.className = 'match-preview-panel';
 
-  // UTC kickoff time
-  const utcDate = new Date(m.utc);
-  const utcStr  = utcDate.toLocaleString('en-GB', {
-    weekday:'short', day:'numeric', month:'short',
-    hour:'2-digit', minute:'2-digit', timeZone:'UTC'
-  }) + ' UTC';
-
-  // Header
-  const hdr = document.createElement('div');
-  hdr.className = 'preview-header';
-  hdr.innerHTML =
-    '<div>' +
-      '<div class="preview-teams">' + esc(m.home) + ' <span style="color:var(--teal);font-weight:400;">vs</span> ' + esc(m.away) + '</div>' +
-      '<div class="preview-meta">' + esc(m.group || m.round) + (data.venue ? ' · ' + esc(data.venue) : '') + '</div>' +
-    '</div>' +
-    '<div class="preview-kickoff">' + utcStr + '</div>';
-  panel.appendChild(hdr);
-
-  // Collapsible body
+  // ── LAZY: only build body content when toggle is clicked ──
+  let bodyBuilt = false;
   const body = document.createElement('div');
   body.className = 'preview-body';
-  body.style.display = 'none'; // collapsed by default
+  body.style.display = 'none';
 
-  // H2H section
-  const h2hSection = document.createElement('div');
-  h2hSection.style.marginBottom = '12px';
-  h2hSection.innerHTML = '<div class="preview-section-title">Head to Head</div>';
+  function buildBody() {
+    if(bodyBuilt) return;
+    bodyBuilt = true;
 
-  if(data.firstMeeting || !data.h2h || data.h2h.length === 0) {
-    h2hSection.innerHTML +=
-      '<div class="first-meeting-badge">🌟 First ever meeting between these nations</div>';
-  } else {
-    data.h2h.forEach(h => {
-      const row = document.createElement('div');
-      row.className = 'h2h-row';
-      row.innerHTML =
-        '<span class="h2h-year">' + h.year + '</span>' +
-        '<span class="h2h-result">' + esc(h.result) + '</span>' +
-        '<span class="h2h-note">' + esc(h.note) + '</span>';
-      h2hSection.appendChild(row);
-    });
-  }
-  body.appendChild(h2hSection);
+    // H2H section
+    const h2hSection = document.createElement('div');
+    h2hSection.style.marginBottom = '12px';
+    h2hSection.innerHTML = '<div class="preview-section-title">Head to Head</div>';
+    if(data.firstMeeting || !data.h2h || data.h2h.length === 0) {
+      h2hSection.innerHTML +=
+        '<div class="first-meeting-badge">🌟 First ever meeting between these nations</div>';
+    } else {
+      data.h2h.forEach(h => {
+        const row = document.createElement('div');
+        row.className = 'h2h-row';
+        row.innerHTML =
+          '<span class="h2h-year">' + h.year + '</span>' +
+          '<span class="h2h-result">' + esc(h.result) + '</span>' +
+          '<span class="h2h-note">' + esc(h.note) + '</span>';
+        h2hSection.appendChild(row);
+      });
+    }
+    body.appendChild(h2hSection);
 
-  // Fun fact
-  if(data.fact) {
-    const factBox = document.createElement('div');
-    factBox.className = 'preview-fact-box';
-    factBox.innerHTML = '💡 ' + esc(data.fact);
-    body.appendChild(factBox);
-  }
-
-  // Stat pill
-  if(data.stat) {
-    const statPill = document.createElement('div');
-    statPill.className = 'preview-stat-pill';
-    statPill.innerHTML = '📊 ' + esc(data.stat);
-    body.appendChild(statPill);
+    if(data.fact) {
+      const factBox = document.createElement('div');
+      factBox.className = 'preview-fact-box';
+      factBox.innerHTML = '💡 ' + esc(data.fact);
+      body.appendChild(factBox);
+    }
+    if(data.stat) {
+      const statPill = document.createElement('div');
+      statPill.className = 'preview-stat-pill';
+      statPill.innerHTML = '📊 ' + esc(data.stat);
+      body.appendChild(statPill);
+    }
   }
 
   panel.appendChild(body);
 
-  // Toggle button
+  // Toggle button — lightweight, no header rendered upfront
   const toggle = document.createElement('button');
   toggle.className = 'preview-toggle';
-  toggle.innerHTML = '<span>Match preview</span><span class="preview-toggle-icon">▼</span>';
+  toggle.innerHTML = '<span>Match preview · H2H &amp; facts</span><span class="preview-toggle-icon">▼</span>';
   toggle.onclick = () => {
     const open = body.style.display !== 'none';
+    if(!open) buildBody(); // build on first open only
     body.style.display = open ? 'none' : 'block';
     toggle.classList.toggle('open', !open);
-    toggle.querySelector('span').textContent = open ? 'Match preview' : 'Hide preview';
+    toggle.querySelector('span').textContent = open ? 'Match preview · H2H & facts' : 'Hide preview';
   };
   panel.appendChild(toggle);
 
