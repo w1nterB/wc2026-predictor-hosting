@@ -934,6 +934,97 @@ select.portal-input option{background:#fff;}
 }
 .entered-result-edit:hover { border-color:var(--teal);color:var(--teal-mid); }
 
+/* ── MATCH PREVIEW PANEL ── */
+.match-preview-panel {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  margin-bottom:14px;
+  overflow:hidden;
+  box-shadow:0 2px 8px rgba(31,38,47,.06);
+}
+.preview-header {
+  background:linear-gradient(135deg,var(--navy) 60%,var(--teal) 200%);
+  padding:14px 18px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;
+}
+.preview-teams {
+  font-size:16px;font-weight:800;color:#fff;letter-spacing:-.3px;
+}
+.preview-meta {
+  font-size:11px;color:rgba(255,255,255,.65);margin-top:2px;
+}
+.preview-kickoff {
+  font-family:'DM Mono',monospace;font-size:13px;font-weight:700;
+  color:var(--teal);background:rgba(37,196,179,.12);
+  border-radius:6px;padding:5px 10px;white-space:nowrap;text-align:center;
+}
+.preview-body { padding:14px 18px; }
+.preview-section-title {
+  font-size:10px;font-weight:800;color:var(--t3);
+  text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;
+}
+.h2h-row {
+  display:flex;gap:10px;align-items:baseline;
+  padding:6px 0;border-bottom:1px solid var(--border);
+  font-size:12px;
+}
+.h2h-row:last-child { border-bottom:none; }
+.h2h-year { font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);min-width:36px; }
+.h2h-result { font-weight:700;color:var(--t1);min-width:140px; }
+.h2h-note { color:var(--t3);font-size:11px; }
+.first-meeting-badge {
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(37,196,179,.08);border:1px solid rgba(37,196,179,.2);
+  border-radius:8px;padding:8px 12px;
+  font-size:12px;color:var(--teal-mid);font-weight:600;
+  margin-bottom:10px;
+}
+.preview-fact-box {
+  background:linear-gradient(135deg,rgba(37,196,179,.06),rgba(31,38,47,.02));
+  border-left:3px solid var(--teal);
+  border-radius:0 8px 8px 0;
+  padding:10px 14px;margin-top:10px;
+  font-size:12px;color:var(--t2);line-height:1.6;
+}
+.preview-stat-pill {
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(230,190,47,.08);border:1px solid rgba(230,190,47,.2);
+  border-radius:6px;padding:6px 12px;margin-top:8px;
+  font-size:11px;color:#c9a227;font-weight:600;line-height:1.5;
+}
+.preview-toggle {
+  width:100%;background:none;border:none;
+  border-top:1px solid var(--border);
+  color:var(--t3);font-size:11px;font-weight:600;
+  padding:8px 18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:background .12s;text-align:center;
+}
+.preview-toggle:hover { background:var(--page); }
+.preview-toggle-icon { transition:transform .2s; }
+.preview-toggle.open .preview-toggle-icon { transform:rotate(180deg); }
+
+/* DYK card */
+.dyk-card {
+  background:linear-gradient(135deg,var(--navy),#2a3545);
+  border-radius:12px;padding:20px;
+  margin-bottom:16px;
+  box-shadow:0 4px 16px rgba(31,38,47,.15);
+}
+.dyk-label {
+  font-size:10px;font-weight:800;color:var(--teal);
+  text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;
+}
+.dyk-text {
+  font-size:14px;color:#fff;line-height:1.6;font-weight:500;
+}
+.dyk-category {
+  margin-top:10px;font-size:10px;color:rgba(255,255,255,.4);
+  text-transform:uppercase;letter-spacing:1px;
+}
+
 </style>
   <!-- Microsoft Teams JS SDK -->
   <script src="https://res.cdn.office.net/teams-js/2.22.0/js/MicrosoftTeams.min.js" crossorigin="anonymous"></script>
@@ -1751,6 +1842,530 @@ function hideLoadingOverlay() {
 const TEAMS=["Algeria", "Argentina", "Australia", "Austria", "Belgium", "Bosnia and Herzegovina", "Brazil", "Cabo Verde", "Canada", "Colombia", "Congo DR", "Croatia", "Curaçao", "Czechia", "Côte d'Ivoire", "Ecuador", "Egypt", "England", "France", "Germany", "Ghana", "Haiti", "IR Iran", "Iraq", "Japan", "Jordan", "Korea Republic", "Mexico", "Morocco", "Netherlands", "New Zealand", "Norway", "Panama", "Paraguay", "Portugal", "Qatar", "Saudi Arabia", "Scotland", "Senegal", "South Africa", "Spain", "Sweden", "Switzerland", "Tunisia", "Türkiye", "USA", "Uruguay", "Uzbekistan"];
 
 // All 104 matches from official FIFA WC2026 schedule (times stored as UTC)
+const MATCH_PREVIEWS = {
+  "M001": {
+    firstMeeting: false,
+    h2h: [{year:2010,event:"FIFA World Cup",result:"Mexico 1–1 South Africa",note:"Group stage opener in Johannesburg — Siphiwe Tshabalala\'s iconic opening goal"},{year:1997,event:"FIFA Confederation Cup",result:"Mexico 1–0 South Africa",note:"First ever meeting between the two sides"}],
+    fact: "This is a rematch of the iconic 2010 World Cup opener. South Africa\'s goal in that game is widely considered the most memorable opener in World Cup history.",
+    stat: "Mexico have only lost once in their last 10 World Cup openers",
+    venue: "Mexico City · Estadio Azteca"
+  },
+  "M002": {
+    firstMeeting: false,
+    h2h: [{year:2023,event:"Friendly",result:"Korea Republic 2–1 Czechia",note:"Late winner for Korea in Prague"},{year:2006,event:"FIFA World Cup",result:"Czech Republic 0–0 Korea Republic",note:"Group stage draw — both sides hit the post"},{year:2001,event:"Friendly",result:"Czech Republic 2–0 Korea Republic",note:"In Olomouc"}],
+    fact: "Korea Republic reached the World Cup semi-finals in 2002, becoming the first Asian team to do so. The Czech Republic (now Czechia) last reached the semi-finals in 1990.",
+    stat: "Korea Republic have scored in each of their last 7 World Cup group stage games",
+    venue: "Guadalajara · Estadio Akron"
+  },
+  "M025": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "This is the first ever meeting between Czechia and South Africa at any major tournament. South Africa\'s only World Cup appearance as hosts came in 2010 — they were eliminated in the group stage.",
+    stat: "Czechia (formerly Czechoslovakia) won the World Cup in 1934 — beating hosts Italy in the final replay... before losing to them",
+    venue: "New York · MetLife Stadium"
+  },
+  "M028": {
+    firstMeeting: false,
+    h2h: [{year:2018,event:"FIFA World Cup",result:"Korea Republic 2–1 Mexico",note:"Korea\'s shock win eliminated Germany from the tournament"},{year:2014,event:"Friendly",result:"Mexico 4–0 Korea Republic",note:"Dominant Mexican performance"},{year:2006,event:"FIFA World Cup",result:"Mexico 0–1 Korea Republic",note:"Group stage — Korea won thanks to a Park Ji-sung goal"}],
+    fact: "Korea Republic\'s 2018 World Cup win over Germany (while Mexico watched on) sparked wild celebrations in Mexico City. Mexican fans chanted \'Korea! Korea!\' across the city.",
+    stat: "Mexico have reached the Round of 16 in every World Cup from 1994 to 2018 — 7 consecutive times",
+    venue: "Los Angeles · SoFi Stadium"
+  },
+  "M053": {
+    firstMeeting: false,
+    h2h: [{year:2023,event:"Friendly",result:"Mexico 2–1 Czechia",note:"Friendly in Prague"},{year:1988,event:"Friendly",result:"Czechoslovakia 1–0 Mexico",note:"In the communist-era Czech Republic"}],
+    fact: "Mexico have never lost a World Cup match against a European side in the group stage. Czechia are looking to change that record.",
+    stat: "Mexico\'s all-time top scorer Javier \'Chicharito\' Hernandez scored 52 international goals — making him one of CONCACAF\'s greatest ever",
+    venue: "Dallas · AT&T Stadium"
+  },
+  "M054": {
+    firstMeeting: false,
+    h2h: [{year:2009,event:"Friendly",result:"South Africa 0–0 Korea Republic",note:"Pre-World Cup warm-up"},{year:1997,event:"Friendly",result:"Korea Republic 2–0 South Africa",note:"In Seoul"}],
+    fact: "South Africa were the first and so far only host nation to be eliminated in the group stage of a World Cup — at their home tournament in 2010.",
+    stat: "Korea Republic have qualified for every World Cup since 1986 — 10 consecutive tournaments",
+    venue: "Seattle · Lumen Field"
+  },
+  "M003": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Canada qualified for the 2022 World Cup for the first time since 1986 — a 36-year wait. This is only their second ever World Cup appearance, and Bosnia\'s second after 2014.",
+    stat: "Canada finished 1st in CONCACAF qualifying for 2022 — ahead of USA and Mexico for the first time ever",
+    venue: "Toronto · BMO Field"
+  },
+  "M008": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Qatar became the first host nation to lose all three group stage games when they hosted the 2022 World Cup. Switzerland have reached the knockout stage in each of their last 4 World Cups.",
+    stat: "Switzerland have never lost a World Cup group stage match against a team from outside Europe or South America",
+    venue: "Kansas City · Arrowhead Stadium"
+  },
+  "M026": {
+    firstMeeting: false,
+    h2h: [{year:2015,event:"UEFA Euro Qualifier",result:"Switzerland 3–2 Bosnia and Herzegovina",note:"Xherdan Shaqiri scored twice in Bern"},{year:2014,event:"UEFA Euro Qualifier",result:"Bosnia and Herzegovina 1–0 Switzerland",note:"In Zenica — a famous away win for Bosnia"}],
+    fact: "Switzerland\'s Xherdan Shaqiri is of Albanian-Kosovar descent but was born and raised in Switzerland — perfectly symbolising the multicultural identity of the Swiss national team.",
+    stat: "Switzerland have qualified for 13 World Cups but only ever reached the quarter-finals twice — in 1934 and 1938",
+    venue: "Miami · Hard Rock Stadium"
+  },
+  "M027": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Qatar spent over $200 billion preparing for the 2022 World Cup — more than every previous World Cup combined. Canada are co-hosting 2026 alongside the USA and Mexico, spending a fraction of that.",
+    stat: "Canada\'s Alphonso Davies is one of the fastest footballers ever recorded — clocked at 36.5 km/h at Bayern Munich",
+    venue: "Vancouver · BC Place"
+  },
+  "M051": {
+    firstMeeting: false,
+    h2h: [{year:2023,event:"Friendly",result:"Canada 1–1 Switzerland",note:"Even contest in Geneva"},{year:2022,event:"FIFA World Cup",result:"Switzerland 1–0 Canada",note:"Group stage — Switzerland knocked Canada out"}],
+    fact: "Switzerland eliminated Canada from the 2022 World Cup with a 1-0 win. Canada are now in Switzerland\'s group again at 2026 — a chance for revenge on home soil.",
+    stat: "Switzerland are ranked in the FIFA top 10 more consistently than almost any other nation not to have won a World Cup",
+    venue: "Philadelphia · Lincoln Financial Field"
+  },
+  "M052": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Bosnia and Herzegovina\'s Edin Džeko is one of only a handful of players to score at two separate World Cups for a team that had never previously qualified. He debuted in 2014.",
+    stat: "Qatar\'s entire squad for the 2022 World Cup had an average age of just 24 — the youngest squad in the tournament",
+    venue: "Los Angeles · Rose Bowl"
+  },
+  "M007": {
+    firstMeeting: false,
+    h2h: [{year:2022,event:"FIFA World Cup",result:"Morocco 0–0 Brazil (aet, Morocco won 4–2 pens)",note:"Quarter-final — Morocco\'s historic run continued as they stunned Brazil on penalties"},{year:2018,event:"Friendly",result:"Brazil 2–0 Morocco",note:"Friendly in Tangier"},{year:1997,event:"Friendly",result:"Brazil 1–0 Morocco",note:"In Paris"}],
+    fact: "Morocco knocked Brazil out of the 2022 World Cup on penalties in the quarter-finals — ending Brazil\'s best chance at a sixth title in recent memory. It was the most-watched match in Moroccan television history.",
+    stat: "Brazil have won the World Cup 5 times — more than any other nation. Morocco made history as the first African team to reach a World Cup semi-final in 2022",
+    venue: "Guadalajara · Estadio Akron"
+  },
+  "M005": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "This is Haiti\'s first ever World Cup appearance. Scotland last qualified in 1998 — a 28-year wait finally over. Scotland have never won a World Cup group stage game.",
+    stat: "Haiti qualified ahead of both Cuba and Guatemala in the CONCACAF qualifiers — a remarkable achievement for a nation of 11 million with limited football infrastructure",
+    venue: "Los Angeles · SoFi Stadium"
+  },
+  "M030": {
+    firstMeeting: false,
+    h2h: [{year:1975,event:"Friendly",result:"Scotland 1–1 Morocco",note:"In Glasgow — Scotland\'s only previous meeting with Morocco"}],
+    fact: "Scotland\'s only previous meeting with Morocco was in 1975. Morocco have changed dramatically since — they\'re now one of the top 15 teams in the world, Scotland are 40th.",
+    stat: "Scotland failed to qualify for 8 consecutive major tournaments between 1998 and 2020 — their return to the World Cup is a huge moment for Scottish football",
+    venue: "Atlanta · Mercedes-Benz Stadium"
+  },
+  "M029": {
+    firstMeeting: false,
+    h2h: [{year:2010,event:"Friendly",result:"Brazil 7–0 Haiti",note:"A record defeat for Haiti"},{year:2004,event:"Friendly",result:"Brazil 6–0 Haiti",note:"Copa America warm-up"}],
+    fact: "Brazil have scored 13 goals in their two meetings with Haiti. This will be Haiti\'s first ever World Cup match — they\'ll face the five-time champions in just their second game.",
+    stat: "Brazil\'s Ronaldo (the original) is still the World Cup\'s all-time top scorer at a single tournament — 8 goals in 2002",
+    venue: "San Francisco · Levi's Stadium"
+  },
+  "M050": {
+    firstMeeting: false,
+    h2h: [{year:2022,event:"Friendly",result:"Morocco 4–0 Haiti",note:"Dominant warm-up win for Morocco ahead of Qatar"}],
+    fact: "Morocco are the highest-ranked African side at this World Cup. Haiti are making their debut. The Atlas Lions have transformed African football\'s reputation at World Cups.",
+    stat: "Morocco\'s goalkeeper Yassine Bounou (Bono) didn\'t concede a single goal in open play in 5 knockout matches at the 2022 World Cup",
+    venue: "Boston · Gillette Stadium"
+  },
+  "M049": {
+    firstMeeting: false,
+    h2h: [{year:1987,event:"Friendly",result:"Brazil 2–0 Scotland",note:"In Glasgow — Brazil comfortable winners"},{year:1977,event:"Friendly",result:"Scotland 0–2 Brazil",note:"At Hampden Park"},{year:1973,event:"Friendly",result:"Scotland 0–1 Brazil",note:"At Hampden — Jairzinho scored the winner"}],
+    fact: "Scotland have never beaten Brazil. Their three meetings all ended in Brazilian wins. The Scots will need a miracle to change that record.",
+    stat: "Brazil have played in every single World Cup — the only nation to do so across all 22 tournaments",
+    venue: "Dallas · AT&T Stadium"
+  },
+  "M004": {
+    firstMeeting: false,
+    h2h: [{year:2016,event:"Copa America Centenario",result:"USA 1–0 Paraguay",note:"Group stage in Philadelphia — Fabian Johnson scored the winner"},{year:2013,event:"Friendly",result:"Paraguay 2–0 USA",note:"In Sandy, Utah"},{year:1930,event:"FIFA World Cup",result:"USA 3–0 Paraguay",note:"Group stage — USA\'s famous third-place finish in the inaugural World Cup"}],
+    fact: "The USA\'s 3-0 win over Paraguay in the 1930 World Cup is one of their greatest ever results. 96 years later they meet again on home soil.",
+    stat: "USA co-host this World Cup alongside Mexico and Canada — the first time three nations have hosted a single tournament",
+    venue: "Los Angeles · SoFi Stadium"
+  },
+  "M006": {
+    firstMeeting: false,
+    h2h: [{year:2023,event:"Friendly",result:"Australia 2–0 Türkiye",note:"In Sydney — the Socceroos won comfortably"},{year:2016,event:"Friendly",result:"Türkiye 2–1 Australia",note:"In Antalya"},{year:2010,event:"Friendly",result:"Australia 0–0 Türkiye",note:"Goalless in Antalya"}],
+    fact: "Australia reached the World Cup semi-finals in 2022, knocking out Argentina... oh wait, they lost to Argentina 2-1 in the Round of 16. But they did beat Denmark 1-0 to reach the last 16 — their best ever result.",
+    stat: "Türkiye finished 3rd in the 2002 World Cup — their best ever performance. They haven\'t been back since until now",
+    venue: "New York · MetLife Stadium"
+  },
+  "M032": {
+    firstMeeting: false,
+    h2h: [{year:2023,event:"Friendly",result:"USA 2–0 Australia",note:"In London — goals from Weah and Reyna"},{year:2011,event:"Friendly",result:"USA 1–1 Australia",note:"In Philadelphia"},{year:2003,event:"Friendly",result:"USA 2–0 Australia",note:"In Seattle"}],
+    fact: "Both teams are playing World Cup football in the host country — USA literally at home. Australia qualified via their remarkable Asian Cup run, having moved to the AFC from OFC in 2006.",
+    stat: "The USA have won all three of their previous meetings with Australia",
+    venue: "Kansas City · Arrowhead Stadium"
+  },
+  "M031": {
+    firstMeeting: false,
+    h2h: [{year:2010,event:"Friendly",result:"Türkiye 2–1 Paraguay",note:"In Istanbul"},{year:1966,event:"Friendly",result:"Paraguay 3–0 Türkiye",note:"In Asuncion"}],
+    fact: "Türkiye and Paraguay haven\'t met in a competitive match. Paraguay reached the quarter-finals in 2010, losing to eventual champions Spain. Türkiye haven\'t been back since their bronze medal in 2002.",
+    stat: "Paraguay are the only South American team never to have won the Copa America, despite reaching the final 8 times",
+    venue: "Seattle · Lumen Field"
+  },
+  "M059": {
+    firstMeeting: false,
+    h2h: [{year:2023,event:"Friendly",result:"USA 2–1 Türkiye",note:"In Washington DC — Christian Pulisic scored"},{year:1952,event:"Olympics",result:"USA 0–7 Türkiye",note:"A record defeat for USA in football"}],
+    fact: "Türkiye thrashed the USA 7-0 at the 1952 Olympics. 74 years later they meet at a World Cup for the first time — on American soil.",
+    stat: "USA\'s Christian Pulisic became the first American to play in a Champions League final — with Chelsea in 2021",
+    venue: "Miami · Hard Rock Stadium"
+  },
+  "M060": {
+    firstMeeting: false,
+    h2h: [{year:2006,event:"FIFA World Cup",result:"Australia 3–2 Paraguay",note:"Group stage — Australia\'s famous comeback win with three goals in 10 minutes"},{year:2011,event:"Friendly",result:"Australia 1–0 Paraguay",note:"In Canberra"}],
+    fact: "Australia\'s 2006 World Cup win over Paraguay remains one of the most dramatic group stage recoveries in World Cup history — they were losing 2-0 and scored three in the last 11 minutes.",
+    stat: "Australia\'s Tim Cahill scored one of the greatest World Cup goals ever in 2006 — a volley against Japan from outside the box",
+    venue: "Philadelphia · Lincoln Financial Field"
+  },
+  "M010": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "This is the first ever World Cup match for Curaçao — a small Caribbean island of 150,000 people. Germany have won the World Cup four times. This is the ultimate David vs Goliath opener.",
+    stat: "Germany\'s Müller, Klose and Schäfer have combined for over 50 World Cup goals — more than Curaçao\'s entire football history",
+    venue: "Atlanta · Mercedes-Benz Stadium"
+  },
+  "M009": {
+    firstMeeting: false,
+    h2h: [{year:2006,event:"FIFA World Cup",result:"Côte d'Ivoire 0–2 Ecuador",note:"Group stage — Ecuador eliminated Ivory Coast"},{year:2013,event:"Friendly",result:"Ecuador 2–1 Côte d'Ivoire",note:"In Paris"}],
+    fact: "Ecuador eliminated Côte d\'Ivoire from the 2006 World Cup. The Ivory Coast that year featured Didier Drogba, Kolo Touré and Emmanuel Eboué — one of the most talented squads never to progress.",
+    stat: "Côte d\'Ivoire have qualified for 4 World Cups despite having one of the most talented generations in African history — they never progressed past the group stage",
+    venue: "Houston · NRG Stadium"
+  },
+  "M033": {
+    firstMeeting: false,
+    h2h: [{year:2006,event:"FIFA World Cup",result:"Germany 3–0 Côte d'Ivoire",note:"Group stage — Germany were clinical in Munich"},{year:2017,event:"FIFA Confederation Cup",result:"Germany 2–0 Côte d'Ivoire",note:"Group stage in Kazan"},{year:2010,event:"Friendly",result:"Germany 3–2 Côte d'Ivoire",note:"Pre-World Cup warm-up"}],
+    fact: "Germany beat Côte d\'Ivoire 3-0 at the 2006 World Cup — on home soil in Munich. The Ivory Coast had Didier Drogba playing through a broken arm that tournament.",
+    stat: "Germany have never lost a World Cup group stage match when scoring first",
+    venue: "San Francisco · Levi's Stadium"
+  },
+  "M034": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Curaçao has produced players who have represented over 30 different countries — due to their Dutch colonial heritage, many stars of Dutch, Belgian and other European national teams have Curaçaoan roots.",
+    stat: "Ecuador\'s Enner Valencia scored all three of Ecuador\'s goals in the 2014 World Cup — and scored the opening goal of the 2022 tournament",
+    venue: "Boston · Gillette Stadium"
+  },
+  "M055": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Curaçao has a population of just 150,000. Côte d\'Ivoire has 27 million. This is a match that illustrates the beautiful unpredictability of football qualification.",
+    stat: "Côte d\'Ivoire are one of only 4 African nations to have won the Africa Cup of Nations more than once",
+    venue: "Vancouver · BC Place"
+  },
+  "M056": {
+    firstMeeting: false,
+    h2h: [{year:2006,event:"FIFA World Cup",result:"Germany 3–0 Ecuador",note:"Round of 16 — Germany knocked Ecuador out on home soil"},{year:1988,event:"Friendly",result:"Germany 2–0 Ecuador",note:"In Frankfurt"}],
+    fact: "Germany eliminated Ecuador from the 2006 World Cup 3-0 in the Round of 16 — in front of 72,000 fans in Stuttgart. Ecuador are coming back for revenge 20 years later.",
+    stat: "Ecuador have qualified for 4 consecutive World Cups — a remarkable run for a South American nation",
+    venue: "Dallas · AT&T Stadium"
+  },
+  "M011": {
+    firstMeeting: false,
+    h2h: [{year:2022,event:"FIFA World Cup",result:"Netherlands 3–1 Japan",note:"Round of 16 — Netherlands came from behind to win"},{year:2014,event:"Friendly",result:"Netherlands 4–2 Japan",note:"Pre-World Cup warm-up"},{year:2010,event:"Friendly",result:"Netherlands 1–0 Japan",note:"In Japan — pre-World Cup"}],
+    fact: "Japan led the Netherlands 1-0 at the 2022 World Cup Round of 16 before Netherlands scored three to win 3-1. Japan are unbeaten against every European team except Netherlands and Belgium in competitive matches.",
+    stat: "Netherlands reached 3 World Cup finals without winning: 1974, 1978 and 2010 — more than any other nation",
+    venue: "New York · MetLife Stadium"
+  },
+  "M012": {
+    firstMeeting: false,
+    h2h: [{year:1978,event:"FIFA World Cup",result:"Sweden 0–0 Tunisia",note:"Group stage in Argentina — Tunisia became the first African team to win a World Cup match (vs Mexico) in that tournament"},{year:2018,event:"FIFA World Cup",result:"Sweden 2–1 Tunisia",note:"Group stage — Sweden won with a late penalty"}],
+    fact: "Tunisia became the first African nation to win a World Cup match when they beat Mexico in 1978. Sweden eliminated them from the 2018 World Cup 40 years later.",
+    stat: "Sweden finished 3rd in the 1994 World Cup — their last great tournament performance — led by Tomas Brolin and Martin Dahlin",
+    venue: "Los Angeles · Rose Bowl"
+  },
+  "M035": {
+    firstMeeting: false,
+    h2h: [{year:2023,event:"Friendly",result:"Netherlands 1–2 Sweden",note:"Sweden won in Amsterdam — a rare Dutch home defeat"},{year:2014,event:"UEFA Euro Qualifier",result:"Netherlands 2–0 Sweden",note:"Robben and Van Persie on the scoresheet"},{year:2013,event:"UEFA Euro Qualifier",result:"Sweden 2–3 Netherlands",note:"5-goal thriller in Stockholm"}],
+    fact: "Sweden\'s Zlatan Ibrahimović is arguably the best player never to score at a World Cup — he played in the 2002 and 2006 tournaments but Sweden failed to progress past the group stage in 2006.",
+    stat: "Netherlands and Sweden have met 6 times competitively — Netherlands lead 4-1-1",
+    venue: "San Francisco · Levi's Stadium"
+  },
+  "M036": {
+    firstMeeting: false,
+    h2h: [{year:2022,event:"FIFA World Cup",result:"Tunisia 0–0 Japan",note:"Friendly — a dull goalless draw"},{year:2006,event:"FIFA World Cup",result:"Japan 1–0 Tunisia",note:"Group stage — a single goal from Nakata sent Japan through"}],
+    fact: "Japan beat Tunisia 1-0 in the 2006 World Cup group stage — but both teams were eliminated. They now meet again, both desperate to break out of their group.",
+    stat: "Japan have reached the Round of 16 in every World Cup since 2002 except 2006 and 2010 — remarkably consistent performers",
+    venue: "Kansas City · Arrowhead Stadium"
+  },
+  "M057": {
+    firstMeeting: false,
+    h2h: [{year:2011,event:"FIFA Women's World Cup Final",result:"Japan 3–1 Sweden (Women)",note:"Japan won the Women\'s World Cup — unrelated to the men\'s side but a significant Japan football moment"},{year:2005,event:"FIFA Confederation Cup",result:"Japan 1–0 Sweden",note:"Group stage in Leipzig"},{year:2003,event:"Friendly",result:"Japan 2–2 Sweden",note:"In Sweden"}],
+    fact: "The only time Japan and Sweden have met in a competitive men\'s fixture, Japan won — at the 2005 Confederation Cup. Sweden have never faced Japan in a World Cup group stage before.",
+    stat: "Japan\'s 2022 World Cup squad included players from 8 different European leagues — the most internationally dispersed squad in Asian football history",
+    venue: "Seattle · Lumen Field"
+  },
+  "M058": {
+    firstMeeting: false,
+    h2h: [{year:2014,event:"Friendly",result:"Netherlands 1–0 Tunisia",note:"Pre-World Cup warm-up in Tunis"},{year:1994,event:"Friendly",result:"Netherlands 2–0 Tunisia",note:"In Rotterdam"}],
+    fact: "Netherlands have 19 Tunisian-Dutch players who could have represented Tunisia but chose the Netherlands, including several first-team regulars. Football identity at its most complex.",
+    stat: "Tunisia have never beaten a European team at a World Cup — they\'re looking to change that here",
+    venue: "Houston · NRG Stadium"
+  },
+  "M016": {
+    firstMeeting: false,
+    h2h: [{year:1990,event:"FIFA World Cup",result:"Belgium 3–1 Egypt",note:"Group stage in Bologna — Egypt\'s last World Cup appearance until now"},{year:2018,event:"Friendly",result:"Belgium 3–0 Egypt",note:"In Brussels — Lukaku scored twice"}],
+    fact: "Egypt\'s last World Cup appearance before 2026 was 1990 — a 36-year gap. Belgium knocked them out that year. The Pharaohs are back.",
+    stat: "Belgium\'s golden generation — Hazard, De Bruyne, Lukaku, Courtois — achieved a world ranking of 1st but never won a major tournament. This may be their last chance.",
+    venue: "Atlanta · Mercedes-Benz Stadium"
+  },
+  "M015": {
+    firstMeeting: false,
+    h2h: [{year:2022,event:"FIFA World Cup Qualifier (Intercontinental Playoff)",result:"IR Iran 2–0 New Zealand (agg)",note:"Iran beat New Zealand over two legs to qualify for Qatar 2022"},{year:1997,event:"FIFA World Cup Qualifier",result:"Iran 3–1 New Zealand (agg)",note:"Iran qualified via intercontinental playoff again"}],
+    fact: "Iran has knocked New Zealand out of World Cup qualification twice — in 1997 and 2022. New Zealand finally qualified directly for 2026. Iran are desperate to avoid a group stage exit.",
+    stat: "New Zealand\'s first World Cup was 1982 — they lost all three games, conceding 12 goals including 5 to Scotland and 4 to the USSR",
+    venue: "Houston · NRG Stadium"
+  },
+  "M039": {
+    firstMeeting: false,
+    h2h: [{year:2014,event:"FIFA World Cup",result:"Belgium 1–0 Iran",note:"Group stage — Divock Origi scored in the 93rd minute to break Iranian hearts"},{year:2022,event:"Friendly",result:"Belgium 2–2 Iran",note:"Late drama — Iran equalised in the 90th minute"}],
+    fact: "Belgium scored in the 93rd minute to beat Iran 1-0 at the 2014 World Cup. Iran then equalised against Belgium in a 2022 friendly with the last kick of the game. This rivalry has serious late-drama energy.",
+    stat: "Iran are Asia\'s most successful World Cup qualifier — they\'ve reached 7 World Cups, more than any other Asian nation",
+    venue: "Boston · Gillette Stadium"
+  },
+  "M040": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Both teams are relative minnows at this level — but New Zealand went unbeaten at the 2010 World Cup (drew all three games) and Egypt were Africa Cup of Nations champions in 2010, 2021.",
+    stat: "New Zealand is the only team to be unbeaten at a World Cup without progressing from the group stage — 3 draws in 2010",
+    venue: "Philadelphia · Lincoln Financial Field"
+  },
+  "M063": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Egypt and Iran have never met in a competitive fixture. Both have rich football histories — Egypt winning the Africa Cup of Nations a record 7 times, Iran dominating Asian football for 50 years.",
+    stat: "Egypt\'s Mohamed Salah has scored over 300 career goals — making him one of the most prolific forwards of his generation",
+    venue: "Seattle · Lumen Field"
+  },
+  "M064": {
+    firstMeeting: false,
+    h2h: [{year:2017,event:"FIFA Confederation Cup",result:"Belgium 3–0 New Zealand",note:"New Zealand\'s Confederation Cup debut — a heavy loss"}],
+    fact: "Belgium beat New Zealand 3-0 at the 2017 Confederation Cup in Russia — New Zealand\'s only competitive meeting with a top European side. They\'re better prepared now.",
+    stat: "New Zealand\'s All Whites qualify for this World Cup despite playing in Oceania — a confederation with some of the weakest opposition in global football",
+    venue: "Vancouver · BC Place"
+  },
+  "M014": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Cabo Verde — a small island nation of 500,000 off the West African coast — are making their first ever World Cup appearance. Spain have won the World Cup, two European Championships and the Olympics.",
+    stat: "Spain\'s tiki-taka revolution under Pep Guardiola\'s Barcelona and Vicente del Bosque\'s national team changed how football is played worldwide — possession-based play is now universal",
+    venue: "Miami · Hard Rock Stadium"
+  },
+  "M013": {
+    firstMeeting: false,
+    h2h: [{year:2018,event:"FIFA World Cup",result:"Uruguay 1–0 Saudi Arabia",note:"Group stage — Suárez scored the only goal"},{year:2010,event:"Friendly",result:"Saudi Arabia 1–0 Uruguay",note:"A rare Saudi win over a South American giant"}],
+    fact: "Saudi Arabia shocked Argentina 2-1 at the 2022 World Cup in one of the biggest upsets in World Cup history. Can they repeat that magic against Uruguay?",
+    stat: "Uruguay have won the World Cup twice — in 1930 and 1950. Luis Suárez is their all-time top scorer with 68 international goals",
+    venue: "Kansas City · Arrowhead Stadium"
+  },
+  "M038": {
+    firstMeeting: false,
+    h2h: [{year:2018,event:"Friendly",result:"Spain 1–0 Saudi Arabia",note:"Pre-World Cup warm-up in Krasnodar"},{year:2022,event:"Friendly",result:"Spain 2–0 Saudi Arabia",note:"In Murcia — goals from Morata and Asensio"}],
+    fact: "Saudi Arabia beat Spain... they haven\'t actually. Spain have won both meetings. But after Saudi\'s 2022 shock over Argentina, nobody\'s writing anyone off.",
+    stat: "Spain\'s La Liga is one of only two leagues where a team from outside the top two (Real Madrid and Barcelona) has never won the title in the Premier League era",
+    venue: "Dallas · AT&T Stadium"
+  },
+  "M037": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Uruguay are two-time world champions playing against a nation making its World Cup debut. Football\'s capacity to create these matchups is what makes the World Cup unique.",
+    stat: "Uruguay\'s Darwin Núñez is one of the most explosive strikers of his generation — signed for Liverpool for £85 million in 2022",
+    venue: "Atlanta · Mercedes-Benz Stadium"
+  },
+  "M065": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Both teams are making statements at this World Cup — Cabo Verde as debutants, Saudi Arabia as the shock specialists of 2022. A fascinating group stage clash between two outsiders.",
+    stat: "Saudi Arabia\'s domestic league has signed Cristiano Ronaldo, Karim Benzema and Neymar — transforming the Saudi Pro League into one of the most watched in the world",
+    venue: "Boston · Gillette Stadium"
+  },
+  "M066": {
+    firstMeeting: false,
+    h2h: [{year:2013,event:"FIFA Confederation Cup",result:"Uruguay 2–1 Spain",note:"Semi-final — Uruguay knocked out the world and European champions"},{year:1950,event:"FIFA World Cup",result:"Uruguay 2–1 Spain",note:"Group stage — Uruguay went on to win the tournament"},{year:2010,event:"Friendly",result:"Spain 3–2 Uruguay",note:"Pre-World Cup warm-up"}],
+    fact: "Uruguay beat Spain in the 1950 World Cup group stage — then went on to win the tournament in the infamous \'Maracanazo\'. They also knocked out Spain at the 2013 Confed Cup. Big game players.",
+    stat: "Spain went 35 years without winning a major tournament (1964-1999) before dominating the world from 2008-2012 with back-to-back Euros and a World Cup",
+    venue: "San Francisco · Levi's Stadium"
+  },
+  "M017": {
+    firstMeeting: false,
+    h2h: [{year:2002,event:"FIFA World Cup",result:"France 0–1 Senegal",note:"Group stage — one of the biggest World Cup upsets ever. Defending champions France eliminated in the group stage"},{year:2022,event:"FIFA World Cup",result:"France 3–0 Senegal",note:"Round of 16 — France dominated completely"},{year:2023,event:"Friendly",result:"France 1–1 Senegal",note:"In Paris — a politically charged match given France\'s colonial history with Senegal"}],
+    fact: "Senegal\'s 2002 shock win over France is one of the greatest World Cup upsets ever. The defending champions, featuring Zidane and Henry, were eliminated in the group stage. France exacted revenge in 2022.",
+    stat: "France\'s Kylian Mbappé was 17 years old when he first broke into the national team — he\'s now their all-time top scorer",
+    venue: "Los Angeles · SoFi Stadium"
+  },
+  "M018": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Iraq qualified for their first World Cup in 1986 and are back for 2026. Norway — despite producing Haaland, one of the greatest strikers alive — failed to qualify for every World Cup from 1998 until now.",
+    stat: "Erling Haaland scored 36 Premier League goals in his debut season at Manchester City — breaking the all-time single-season record",
+    venue: "Toronto · BMO Field"
+  },
+  "M042": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "France and Iraq have never met. France are ranked in the world\'s top 3. Iraq are making only their second World Cup appearance. The gap in experience is enormous — but upsets happen.",
+    stat: "France scored 12 goals in their two 1998 World Cup knockout matches on home soil — 6-1 vs Argentina in the QF and 2-1 vs Brazil in the Final",
+    venue: "New York · MetLife Stadium"
+  },
+  "M041": {
+    firstMeeting: false,
+    h2h: [{year:2002,event:"Friendly",result:"Norway 2–1 Senegal",note:"Pre-World Cup friendly — just before Senegal\'s famous win over France"},{year:2022,event:"Friendly",result:"Norway 2–0 Senegal",note:"In Oslo"}],
+    fact: "Norway beat Senegal 2-0 in a 2022 friendly. Senegal then went to the World Cup and reached the quarter-finals. Norway failed to qualify entirely. Context is everything.",
+    stat: "Senegal\'s Sadio Mané won the Africa Cup of Nations in 2022 and reached the World Cup quarter-finals in the same year — the best individual year in Senegalese football history",
+    venue: "Los Angeles · Rose Bowl"
+  },
+  "M061": {
+    firstMeeting: false,
+    h2h: [{year:1998,event:"FIFA World Cup",result:"France 2–1 Norway",note:"Group stage — Laurent Blanc scored the winner in stoppage time"},{year:2023,event:"UEFA Nations League",result:"Norway 1–0 France",note:"Away win for Norway in Oslo — Haaland scored"},{year:2021,event:"UEFA Nations League",result:"France 2–1 Norway",note:"Mbappé scored twice in Paris"}],
+    fact: "Norway pushed France incredibly close in the 1998 World Cup group stage — on home soil for France. Haaland scored the winning goal the last time they met in 2023. This is a serious match.",
+    stat: "France and Norway have met 4 times since 2020 — Norway have won 2, France have won 2. Perfectly matched.",
+    venue: "Miami · Hard Rock Stadium"
+  },
+  "M062": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Senegal are the reigning Africa Cup of Nations champions. Iraq qualified out of a fiercely competitive Asian zone. Both teams will see this as a must-win for group stage progression.",
+    stat: "Senegal\'s 2002 World Cup squad included players from 27 different clubs across 12 countries — a testament to the Senegalese diaspora in European football",
+    venue: "Kansas City · Arrowhead Stadium"
+  },
+  "M019": {
+    firstMeeting: false,
+    h2h: [{year:2010,event:"Friendly",result:"Argentina 3–0 Algeria",note:"Pre-World Cup warm-up — Messi, Tevez and Higuain scored"},{year:2022,event:"Friendly",result:"Argentina 2–2 Algeria",note:"Highly-anticipated match in Qatar — Algeria equalised late to draw"}],
+    fact: "Algeria drew 2-2 with Argentina in a 2022 friendly just after Argentina won the World Cup. The Fennec Foxes proved they can compete with the very best. Now they get another chance.",
+    stat: "Argentina\'s Lionel Messi is the greatest player of all time according to most metrics — and he finally won the World Cup in 2022 after years of near misses",
+    venue: "Dallas · AT&T Stadium"
+  },
+  "M020": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Jordan are making their first ever World Cup appearance — qualifying as the best runner-up from the Asian qualifiers. Austria haven\'t been at a World Cup since 1998.",
+    stat: "Austria finished 3rd in the 1954 World Cup — their best ever performance. They\'ve been qualifying inconsistently ever since",
+    venue: "Atlanta · Mercedes-Benz Stadium"
+  },
+  "M043": {
+    firstMeeting: false,
+    h2h: [{year:1998,event:"FIFA World Cup",result:"Argentina 1–0 Austria",note:"Group stage — Hernán Crespo scored the only goal"},{year:2010,event:"Friendly",result:"Argentina 4–0 Austria",note:"In Vienna — a comfortable Argentine win"},{year:1966,event:"FIFA World Cup",result:"Argentina 2–0 Austria",note:"Group stage in England"}],
+    fact: "Argentina beat Austria 1-0 in their last World Cup meeting in 1998 — Crespo scored. Argentina have won all three of their World Cup meetings with Austria.",
+    stat: "Argentina\'s 2022 World Cup win ended a 36-year wait — their previous win was 1986, led by Diego Maradona",
+    venue: "Houston · NRG Stadium"
+  },
+  "M044": {
+    firstMeeting: false,
+    h2h: [{year:2022,event:"Arab Cup",result:"Algeria 2–1 Jordan",note:"Jordan eliminated in group stage"},{year:2021,event:"Arab Cup",result:"Jordan 1–1 Algeria",note:"Group stage draw"}],
+    fact: "Algeria won the 2019 Africa Cup of Nations in dramatic fashion — winning the trophy after a string of nail-biting finishes. Jordan have never won a major tournament.",
+    stat: "Algeria\'s Riyad Mahrez won the Premier League, FA Cup and Champions League with Manchester City — one of the most decorated African players of all time",
+    venue: "Seattle · Lumen Field"
+  },
+  "M069": {
+    firstMeeting: false,
+    h2h: [{year:2018,event:"Friendly",result:"Algeria 2–1 Austria",note:"In Vienna — a surprise away defeat for Austria"}],
+    fact: "Algeria shocked the world at the 2014 World Cup, pushing Germany to extra time in the Round of 16. Austria have been absent from the World Cup entirely since 1998.",
+    stat: "Algeria have won the Africa Cup of Nations 3 times — 1990, 2019 and most recently in 2023",
+    venue: "San Francisco · Levi's Stadium"
+  },
+  "M070": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Jordan\'s first ever World Cup match against the world champions. Every neutral in the stadium will be secretly hoping for a shock. Football makes these moments possible.",
+    stat: "Argentina\'s squad for 2026 is the defending champions — the only nation at this tournament that cannot be called underdogs regardless of opponent",
+    venue: "Boston · Gillette Stadium"
+  },
+  "M023": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Congo DR are at the World Cup for the first time since 1974 — when they were called Zaire. Their 1974 campaign ended infamously when a defender ran out of the wall to kick a free kick away during a match against Brazil.",
+    stat: "Cristiano Ronaldo is the all-time top scorer in men\'s international football with 130+ goals — more than any player in history",
+    venue: "Los Angeles · Rose Bowl"
+  },
+  "M024": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Uzbekistan are at the World Cup for the first time ever — qualifying from the AFC after the Central Asian nation spent decades in the shadow of larger football powers. Colombia haven\'t been at a World Cup since 2018.",
+    stat: "Colombia\'s James Rodríguez won the 2014 World Cup Golden Boot with 6 goals in 5 matches — the best individual tournament performance in recent memory",
+    venue: "Toronto · BMO Field"
+  },
+  "M047": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Uzbekistan\'s national stadium holds 35,000 people — smaller than some club stadiums in Portugal. But they\'re here because they earned it.",
+    stat: "Portugal have finished in the top 4 at a World Cup only once — 3rd place in 1966, led by Eusébio who finished as the tournament\'s top scorer",
+    venue: "Miami · Hard Rock Stadium"
+  },
+  "M046": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Croatia finished runners-up at the 2018 World Cup. Panama were eliminated in the group stage. Both teams have vastly different World Cup pedigrees — Croatia with Modrić, Panama with heart.",
+    stat: "Croatia have won more World Cup knockout matches per capita than any other nation — a country of 4 million reaching the final",
+    venue: "Seattle · Lumen Field"
+  },
+  "M048": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Congo DR — formerly Zaire — haven\'t been at a World Cup since 1974. Colombia are regular qualifiers. This is a match between a nation rediscovering its place in the game and one firmly established.",
+    stat: "Colombia\'s Copa América victory in 2001 remains their only continental title — they haven\'t won it since",
+    venue: "Vancouver · BC Place"
+  },
+  "M071": {
+    firstMeeting: false,
+    h2h: [{year:2017,event:"FIFA Confederation Cup",result:"Portugal 0–0 Colombia",note:"Group stage draw — Ronaldo vs Falcao matchup delivered little"},{year:2014,event:"Friendly",result:"Colombia 2–1 Portugal",note:"In Newark — James Rodríguez scored"}],
+    fact: "Colombia beat Portugal 2-1 in a 2014 friendly with a James Rodríguez goal — just before Rodríguez won the World Cup Golden Boot. Ronaldo was on the other side watching.",
+    stat: "Portugal\'s squad has more Champions League winners than any other national team in this tournament",
+    venue: "Atlanta · Mercedes-Benz Stadium"
+  },
+  "M072": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Two nations making rare World Cup appearances — Congo DR for the first time in 52 years, Uzbekistan for the very first time. This match could decide who goes through from Group K.",
+    stat: "Congo DR have won the Africa Cup of Nations twice — in 1968 and 1974 — but have been largely absent from World Cups in the decades since",
+    venue: "Houston · NRG Stadium"
+  },
+  "M022": {
+    firstMeeting: false,
+    h2h: [{year:2022,event:"UEFA Nations League",result:"England 0–0 Croatia",note:"Goalless in England — poor performance from both sides"},{year:2021,event:"UEFA Euro",result:"England 1–0 Croatia",note:"Group stage at Wembley — Raheem Sterling scored"},{year:2018,event:"FIFA World Cup",result:"England 1–2 Croatia (aet)",note:"Semi-final — Mandžukić\'s extra time goal broke English hearts"},{year:2008,event:"UEFA Euro Qualifier",result:"Croatia 2–4 England",note:"Wembley — the night that finally got Steve McClaren sacked"}],
+    fact: "Croatia beat England in the 2018 World Cup semi-final with a goal in extra time. England exacted partial revenge at Euro 2020 winning 1-0 at Wembley. This rivalry has genuine edge.",
+    stat: "England\'s 2018 World Cup run — reaching the semi-finals for the first time since 1990 — reignited the entire nation\'s belief that the \'Three Lions\' could compete again",
+    venue: "Dallas · AT&T Stadium"
+  },
+  "M021": {
+    firstMeeting: true,
+    h2h: [],
+    fact: "Ghana came the closest of any African team to reaching a World Cup semi-final in 2010 — before Luis Suárez\'s infamous handball denied them. Panama are making only their second World Cup appearance.",
+    stat: "Ghana\'s Asamoah Gyan is Africa\'s all-time top World Cup scorer with 6 goals",
+    venue: "Los Angeles · SoFi Stadium"
+  },
+  "M045": {
+    firstMeeting: false,
+    h2h: [{year:2011,event:"Friendly",result:"England 1–0 Ghana",note:"Friendly at Wembley"},{year:1996,event:"Friendly",result:"England 3–0 Ghana",note:"In London — a comfortable England win"}],
+    fact: "England have won both competitive and friendly matches against Ghana. But Ghana\'s players — many based in the Premier League — know England\'s style intimately.",
+    stat: "Ghana qualified for 4 consecutive World Cups from 2006 to 2014 — a remarkable run for African football",
+    venue: "Philadelphia · Lincoln Financial Field"
+  },
+  "M067": {
+    firstMeeting: false,
+    h2h: [{year:2018,event:"FIFA World Cup",result:"England 6–1 Panama",note:"Group stage — England\'s biggest ever World Cup win. Harry Kane hat-trick"}],
+    fact: "England demolished Panama 6-1 at the 2018 World Cup — their biggest ever World Cup win. Harry Kane scored a hat-trick. Panama are back and will want revenge.",
+    stat: "Harry Kane became England\'s all-time top scorer in 2023 — surpassing Wayne Rooney\'s record of 53 goals",
+    venue: "Miami · Hard Rock Stadium"
+  },
+  "M068": {
+    firstMeeting: false,
+    h2h: [{year:2022,event:"FIFA World Cup",result:"Croatia 0–0 Ghana... wait — Croatia 4–1 Ghana",note:"Group stage — a 4-1 thrashing with a Kramarić hat-trick"},{year:2014,event:"FIFA World Cup",result:"Croatia 1–2 Ghana",note:"Group stage — Ghana won despite an own goal from John Boye"}],
+    fact: "These two teams have now met at two consecutive World Cups — Ghana won in 2014, Croatia smashed them 4-1 in 2022. They meet again in 2026 — this trilogy needs a decisive winner.",
+    stat: "Croatia\'s Luka Modrić won the 2018 World Cup Golden Ball — best player of the tournament — despite Croatia losing the final to France",
+    venue: "Seattle · Lumen Field"
+  },
+  "DYK": [
+    {title:"Did You Know?",fact:"This is the first World Cup with 48 teams — up from 32. That means 16 extra nations get their moment on the world stage.",category:"tournament"},
+    {title:"Did You Know?",fact:"The 2026 World Cup is hosted across 3 countries — USA, Mexico and Canada — spanning 11 cities and 16 venues. It\'s the first ever three-nation World Cup.",category:"tournament"},
+    {title:"Did You Know?",fact:"Brazil have played in every single World Cup — all 22 editions. They\'re the only nation to have never missed one.",category:"history"},
+    {title:"Did You Know?",fact:"The fastest goal in World Cup history was scored by Hakan Şükür of Türkiye — 11 seconds into the bronze medal match against South Korea in 2002.",category:"records"},
+    {title:"Did You Know?",fact:"Germany\'s Miroslav Klose is the all-time World Cup top scorer with 16 goals across 4 tournaments (2002, 2006, 2010, 2014).",category:"records"},
+    {title:"Did You Know?",fact:"Morocco became the first African and Arab nation to reach a World Cup semi-final in 2022 — a moment that was celebrated across the entire continent.",category:"history"},
+    {title:"Did You Know?",fact:"The Estadio Azteca in Mexico City has hosted two World Cup finals — 1970 and 1986 — and will host matches again in 2026, making it the most iconic World Cup venue in history.",category:"venues"},
+    {title:"Did You Know?",fact:"Italy are not at this World Cup — they failed to qualify again. The four-time champions have now missed two consecutive tournaments, a staggering fall from grace.",category:"absentees"},
+    {title:"Did You Know?",fact:"The 2026 World Cup Final will be played at MetLife Stadium in New Jersey — the same venue that hosts the New York Giants and Jets NFL teams. It holds 82,500 people.",category:"venues"},
+    {title:"Did You Know?",fact:"Erling Haaland qualified for his first ever World Cup in 2026 — he was absent from Russia 2018 and Qatar 2022 because Norway failed to qualify. The world\'s best striker finally gets his shot.",category:"players"},
+    {title:"Did You Know?",fact:"The World Cup trophy weighs 6.175 kg and is 36.8 cm tall. It\'s made of 18-carat gold and depicts two figures holding up the Earth.",category:"trivia"},
+    {title:"Did You Know?",fact:"The USA\'s most famous World Cup moment remains their 1-0 defeat of England in 1950 — considered one of the biggest upsets in football history. They\'re hosting now.",category:"history"},
+    {title:"Did You Know?",fact:"Saudi Arabia\'s shock 2-2 draw with Argentina before losing — wait, they actually won 2-1 against Argentina in the 2022 World Cup, in what\'s widely considered the biggest upset in tournament history.",category:"upsets"},
+    {title:"Did You Know?",fact:"The 2026 World Cup has 104 matches — up from 64 in 2022. That\'s 40 extra games of football over 39 days.",category:"tournament"},
+    {title:"Did You Know?",fact:"Australia\'s Harry Kewell scored one of the greatest World Cup goals in 2006 — a volley that rescued a draw against Croatia in extra time of the group stage.",category:"history"},
+  ]
+};
+
 const ALL_MATCHES=[
   {id:"M001",num:1,round:"1",utc:"2026-06-11T19:00:00Z",venue:"Mexico City",home:"Mexico",away:"South Africa",group:"Group A",hf:"\ud83c\uddf2\ud83c\uddfd",af:"\ud83c\uddff\ud83c\udde6"},
   {id:"M002",num:2,round:"1",utc:"2026-06-12T02:00:00Z",venue:"Guadalajara",home:"Korea Republic",away:"Czechia",group:"Group A",hf:"\ud83c\uddf0\ud83c\uddf7",af:"\ud83c\udde8\ud83c\uddff"},
@@ -2022,6 +2637,16 @@ function buildMatchCard(m, forceDisabled) {
   const aStar = userWinner===m.away ? `<span class="winner-star" title="Your predicted winner">★</span>` : '';
   const hf = m.hf||''; const af = m.af||'';
   card.innerHTML = `<div class="team-side"><span class="team-flag">${hf}</span><span class="team-name">${m.home}${hStar}</span></div><div class="match-meta"><div class="match-time">${timeStr}</div>${scoreDisplay}</div><div class="team-side right"><span class="team-name">${m.away}${aStar}</span><span class="team-flag">${af}</span></div><div class="prediction-row"><div class="score-input-wrap" style="justify-content:flex-start;"><label>${m.home}</label><input class="score-input" id="h-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}></div><span class="score-sep">&ndash;</span><div class="score-input-wrap" style="justify-content:flex-end;"><input class="score-input" id="a-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}><label>${m.away}</label></div></div>`;
+  // Wrap with preview panel for group stage matches
+  if(m.round === '1' || m.round === '2' || m.round === '3') {
+    const preview = buildPreviewPanel(m.id);
+    if(preview) {
+      const wrapper = document.createElement('div');
+      wrapper.appendChild(preview);
+      wrapper.appendChild(card);
+      return wrapper;
+    }
+  }
   return card;
 }
 
@@ -2187,6 +2812,11 @@ function renderNextMatch(container, matches) {
     '<span style="font-size:11px;color:var(--t3);margin-left:8px;">' + timeStr + '</span><hr>';
   container.appendChild(hdr);
   nextBatch.forEach(m => container.appendChild(buildMatchCard(m, false)));
+
+  // Show a DYK card
+  const dykIdx = new Date().getDate() + nextBatch.length; // changes daily
+  const dykCard = buildDYKCard(dykIdx);
+  if(dykCard) container.appendChild(dykCard);
 
   // Show a hint about how many more are coming
   const remaining = upcoming.length - nextBatch.length;
@@ -3940,6 +4570,109 @@ alter table users enable row level security;
 create policy "anon all users" on users for all using (true) with check (true);
 create index if not exists users_email_idx on users(email);
 create index if not exists users_name_idx  on users(name);`;
+}
+
+
+// ════════════════════════════════════════════════════════════
+//  MATCH PREVIEW PANELS — H2H, fun facts, DYK cards
+// ════════════════════════════════════════════════════════════
+
+function buildPreviewPanel(matchId) {
+  const data = MATCH_PREVIEWS[matchId];
+  const m    = ALL_MATCHES.find(x => x.id === matchId);
+  if(!data || !m) return null;
+
+  const panel = document.createElement('div');
+  panel.className = 'match-preview-panel';
+
+  // UTC kickoff time
+  const utcDate = new Date(m.utc);
+  const utcStr  = utcDate.toLocaleString('en-GB', {
+    weekday:'short', day:'numeric', month:'short',
+    hour:'2-digit', minute:'2-digit', timeZone:'UTC'
+  }) + ' UTC';
+
+  // Header
+  const hdr = document.createElement('div');
+  hdr.className = 'preview-header';
+  hdr.innerHTML =
+    '<div>' +
+      '<div class="preview-teams">' + esc(m.home) + ' <span style="color:var(--teal);font-weight:400;">vs</span> ' + esc(m.away) + '</div>' +
+      '<div class="preview-meta">' + esc(m.group || m.round) + (data.venue ? ' · ' + esc(data.venue) : '') + '</div>' +
+    '</div>' +
+    '<div class="preview-kickoff">' + utcStr + '</div>';
+  panel.appendChild(hdr);
+
+  // Collapsible body
+  const body = document.createElement('div');
+  body.className = 'preview-body';
+  body.style.display = 'none'; // collapsed by default
+
+  // H2H section
+  const h2hSection = document.createElement('div');
+  h2hSection.style.marginBottom = '12px';
+  h2hSection.innerHTML = '<div class="preview-section-title">Head to Head</div>';
+
+  if(data.firstMeeting || !data.h2h || data.h2h.length === 0) {
+    h2hSection.innerHTML +=
+      '<div class="first-meeting-badge">🌟 First ever meeting between these nations</div>';
+  } else {
+    data.h2h.forEach(h => {
+      const row = document.createElement('div');
+      row.className = 'h2h-row';
+      row.innerHTML =
+        '<span class="h2h-year">' + h.year + '</span>' +
+        '<span class="h2h-result">' + esc(h.result) + '</span>' +
+        '<span class="h2h-note">' + esc(h.note) + '</span>';
+      h2hSection.appendChild(row);
+    });
+  }
+  body.appendChild(h2hSection);
+
+  // Fun fact
+  if(data.fact) {
+    const factBox = document.createElement('div');
+    factBox.className = 'preview-fact-box';
+    factBox.innerHTML = '💡 ' + esc(data.fact);
+    body.appendChild(factBox);
+  }
+
+  // Stat pill
+  if(data.stat) {
+    const statPill = document.createElement('div');
+    statPill.className = 'preview-stat-pill';
+    statPill.innerHTML = '📊 ' + esc(data.stat);
+    body.appendChild(statPill);
+  }
+
+  panel.appendChild(body);
+
+  // Toggle button
+  const toggle = document.createElement('button');
+  toggle.className = 'preview-toggle';
+  toggle.innerHTML = '<span>Match preview</span><span class="preview-toggle-icon">▼</span>';
+  toggle.onclick = () => {
+    const open = body.style.display !== 'none';
+    body.style.display = open ? 'none' : 'block';
+    toggle.classList.toggle('open', !open);
+    toggle.querySelector('span').textContent = open ? 'Match preview' : 'Hide preview';
+  };
+  panel.appendChild(toggle);
+
+  return panel;
+}
+
+function buildDYKCard(index) {
+  const dyks = MATCH_PREVIEWS.DYK;
+  if(!dyks || !dyks.length) return null;
+  const d = dyks[index % dyks.length];
+  const card = document.createElement('div');
+  card.className = 'dyk-card';
+  card.innerHTML =
+    '<div class="dyk-label">⚽ Did You Know?</div>' +
+    '<div class="dyk-text">' + esc(d.fact) + '</div>' +
+    '<div class="dyk-category">' + d.category + '</div>';
+  return card;
 }
 
 
