@@ -436,48 +436,9 @@ select.portal-input option{background:#fff;}
 .dash-card p.sub{font-size:14px;color:var(--t3);margin-bottom:14px;}
 
 /* leaderboard */
-.lb-row{
-  display:grid;
-  grid-template-columns:46px minmax(220px,1fr) 92px 96px 96px 124px 90px;
-  align-items:center;
-  gap:12px;
-  padding:12px 0;
-  border-bottom:1px solid var(--border);
-  font-size:14px;
-}
+.lb-row{display:grid;grid-template-columns:32px 1fr 52px 52px 58px 52px 44px;align-items:center;gap:3px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
 .lb-row:last-child{border-bottom:none;}
-.lb-row.header{
-  color:var(--t3);
-  font-size:12px;
-  font-weight:800;
-  text-transform:none;
-  letter-spacing:.3px;
-  padding:12px 0 10px;
-  font-family:'Open Sans',sans-serif;
-}
-.lb-row.header span{text-align:right;white-space:nowrap;}
-.lb-row.header span:nth-child(1),
-.lb-row.header span:nth-child(2){text-align:left;}
-.lb-row .rank,
-.lb-row .rank-no{
-  width:30px;
-  height:30px;
-  border-radius:50%;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  font-size:13px;
-  font-weight:800;
-  font-family:'DM Mono',monospace;
-}
-.lb-row .rank.gold{background:var(--amber-bg);color:var(--amber-dk);border:1px solid rgba(186,146,0,.25);}
-.lb-row .rank.silver{background:#F0F1F3;color:#6b7280;border:1px solid #dde0e5;}
-.lb-row .rank.bronze{background:#FEF3E7;color:#9a6a30;border:1px solid rgba(205,140,74,.25);}
-.lb-row .rank:not(.gold):not(.silver):not(.bronze){background:var(--page);color:var(--t3);border:1px solid var(--border);}
-@media(max-width:900px){
-  .lb-row{grid-template-columns:34px minmax(120px,1fr) 64px 70px 70px 86px 62px;gap:6px;font-size:12px;}
-  .lb-row.header{font-size:11px;}
-}
+.lb-row.header{color:var(--t3);font-size:14px;text-transform:uppercase;letter-spacing:.8px;padding-bottom:8px;font-family:'DM Mono',monospace;}
 .rank-no{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;font-family:'DM Mono',monospace;}
 .r1{background:var(--amber-bg);color:var(--amber-dk);border:1px solid rgba(186,146,0,.25);}
 .r2{background:#F0F1F3;color:#6b7280;border:1px solid #dde0e5;}
@@ -584,6 +545,54 @@ select.portal-input option{background:#fff;}
 }
 .view-mode-btn:hover{border-color:var(--teal);color:var(--teal-mid);}
 .view-mode-btn.active{background:var(--teal);border-color:var(--teal);color:#fff;}
+
+.view-mode-btn.advanced-view{display:none;background:rgba(31,38,47,.04);}
+.view-mode-bar.show-advanced .view-mode-btn.advanced-view{display:inline-flex;}
+.view-mode-more{border-style:dashed;color:var(--teal-mid);background:rgba(37,196,179,.06);}
+
+/* ── ONBOARDING + SAVE STATE ── */
+.welcome-card{
+  background:linear-gradient(135deg,rgba(37,196,179,.10),rgba(255,255,255,.96));
+  border:1px solid rgba(37,196,179,.24);
+  border-radius:12px;padding:18px 20px;margin-bottom:20px;
+  box-shadow:0 2px 10px rgba(31,38,47,.06);
+}
+.welcome-card.hidden{display:none;}
+.welcome-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px;}
+.welcome-title{font-size:16px;font-weight:800;color:var(--t1);letter-spacing:-.2px;}
+.welcome-sub{font-size:13px;color:var(--t3);margin-top:2px;}
+.welcome-dismiss{background:#fff;border:1px solid var(--border);border-radius:20px;color:var(--t3);font-size:12px;font-weight:700;padding:5px 12px;white-space:nowrap;}
+.welcome-dismiss:hover{border-color:var(--teal);color:var(--teal-mid);}
+.welcome-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.welcome-step{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid rgba(37,196,179,.18);border-radius:10px;padding:12px;}
+.welcome-step-no{width:24px;height:24px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0;}
+.welcome-step-title{font-size:13px;font-weight:800;color:var(--t1);}
+.welcome-step-copy{font-size:12px;color:var(--t3);line-height:1.5;margin-top:2px;}
+.match-save-status{grid-column:1/-1;margin-top:8px;font-size:11px;font-weight:700;color:var(--t3);display:flex;justify-content:center;}
+.match-save-status.saved{color:var(--green-dk);}
+.match-save-status.unsaved{color:var(--amber-dk);}
+.match-save-status.partial{color:var(--t3);}
+.match-card.unsaved-card{border-left:3px solid var(--amber);}
+.match-card.saved-card{border-left:3px solid var(--green);}
+.submit-btn.unsaved{background:var(--amber-dk);box-shadow:0 2px 8px rgba(186,146,0,.24);}
+.submit-btn.clean{background:var(--green-dk);box-shadow:0 2px 8px rgba(118,171,66,.24);}
+
+@media(max-width:700px){
+  .welcome-steps{grid-template-columns:1fr;}
+  .welcome-top{flex-direction:column;}
+  .welcome-dismiss{align-self:flex-start;}
+  .view-mode-bar{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;}
+  .view-mode-bar .view-mode-btn,.view-mode-bar span{flex-shrink:0;}
+  .match-card{grid-template-columns:1fr auto 1fr;padding:12px 12px;gap:8px;}
+  .team-name{font-size:13px;}
+  .prediction-row{grid-template-columns:1fr;gap:8px;}
+  .score-sep{display:none;}
+  .score-input-wrap{justify-content:space-between!important;}
+  .score-input{width:52px;font-size:18px;padding:6px 3px;}
+  .sticky-submit-bar{padding:12px 16px;align-items:flex-start;}
+  .sticky-submit-bar .submit-btn{width:100%;}
+}
+
 
 /* ── MATCHDAY SECTION ── */
 .matchday-section{margin-bottom:6px;}
@@ -1142,6 +1151,21 @@ select.portal-input option{background:#fff;}
         <select class="portal-select" id="participant-select" onchange="onParticipantChange()" style="display:none;"><option value="">— select your name —</option></select>
         <div class="submitted-tag" id="submitted-badge"><span class="live-dot"></span><span id="submitted-badge-text">Predictions submitted</span></div>
       </div>
+
+      <div class="welcome-card hidden" id="first-time-welcome">
+        <div class="welcome-top">
+          <div>
+            <div class="welcome-title">Welcome to the WC2026 Predictor 👋</div>
+            <div class="welcome-sub">Quick guide before you start tipping.</div>
+          </div>
+          <button class="welcome-dismiss" onclick="dismissWelcomeCard()">Got it</button>
+        </div>
+        <div class="welcome-steps">
+          <div class="welcome-step"><div class="welcome-step-no">1</div><div><div class="welcome-step-title">Pick specials</div><div class="welcome-step-copy">Choose your winner, runner-up and semi-finalists before the tournament starts.</div></div></div>
+          <div class="welcome-step"><div class="welcome-step-no">2</div><div><div class="welcome-step-title">Predict matches</div><div class="welcome-step-copy">Enter scorelines for each match. Exact scores and correct results both earn points.</div></div></div>
+          <div class="welcome-step"><div class="welcome-step-no">3</div><div><div class="welcome-step-title">Submit</div><div class="welcome-step-copy">Use the sticky submit bar. It will tell you if you have unsaved predictions.</div></div></div>
+        </div>
+      </div>
 <!-- PIN auth replaced by login system -->
       <div id="predictions-content">
 
@@ -1172,14 +1196,15 @@ select.portal-input option{background:#fff;}
         <div class="section-label">Match predictions <span class="s-badge sb-live" id="match-phase-badge">Group stage live</span></div>
         <div style="font-size:11px;color:var(--t3);margin-bottom:14px;">Pick the score for each match — <strong style="color:var(--teal-mid);">3 pts</strong> for correct result · <strong style="color:var(--teal-mid);">6 pts</strong> for exact score · <strong style="color:var(--teal-mid);">9 pts max</strong> per game · locks 1 hr before kickoff · specials close 18 Jun</div>
 
-        <div class="view-mode-bar">
+        <div class="view-mode-bar" id="view-mode-bar">
           <span style="font-size:11px;font-weight:700;color:var(--t3);margin-right:4px;">View by</span>
           <button class="view-mode-btn" onclick="setMatchView('next',this)">Next match</button>
           <button class="view-mode-btn" onclick="setMatchView('upcoming7',this)">Next 7 days</button>
           <button class="view-mode-btn" onclick="setMatchView('round',this)">Matchday</button>
           <button class="view-mode-btn" onclick="setMatchView('group',this)">Group</button>
-          <button class="view-mode-btn" onclick="setMatchView('country',this)">By country</button>
           <button class="view-mode-btn" onclick="setMatchView('all',this)">All matches</button>
+          <button class="view-mode-btn view-mode-more" type="button" onclick="toggleAdvancedViews(this)">More views</button>
+          <button class="view-mode-btn advanced-view" onclick="setMatchView('country',this)">By country</button>
         </div>
 
         <div class="filter-bar" id="group-filter-row">
@@ -1762,7 +1787,7 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
   const hStar = userWinner===m.home ? `<span class="winner-star" title="Your predicted winner">★</span>` : '';
   const aStar = userWinner===m.away ? `<span class="winner-star" title="Your predicted winner">★</span>` : '';
   const hf = m.hf||''; const af = m.af||'';
-  card.innerHTML = `<div class="team-side"><span class="team-flag">${hf}</span><span class="team-name">${m.home}${hStar}</span></div><div class="match-meta"><div class="match-time">${timeStr}</div>${scoreDisplay}</div><div class="team-side right"><span class="team-name">${m.away}${aStar}</span><span class="team-flag">${af}</span></div><div class="prediction-row"><div class="score-input-wrap" style="justify-content:flex-start;"><label>${m.home}</label><input class="score-input" id="h-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}></div><span class="score-sep">&ndash;</span><div class="score-input-wrap" style="justify-content:flex-end;"><input class="score-input" id="a-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}><label>${m.away}</label></div></div>`;
+  card.innerHTML = `<div class="team-side"><span class="team-flag">${hf}</span><span class="team-name">${m.home}${hStar}</span></div><div class="match-meta"><div class="match-time">${timeStr}</div>${scoreDisplay}</div><div class="team-side right"><span class="team-name">${m.away}${aStar}</span><span class="team-flag">${af}</span></div><div class="prediction-row"><div class="score-input-wrap" style="justify-content:flex-start;"><label>${m.home}</label><input class="score-input" id="h-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}></div><span class="score-sep">&ndash;</span><div class="score-input-wrap" style="justify-content:flex-end;"><input class="score-input" id="a-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}><label>${m.away}</label></div><div class="match-save-status" id="save-${m.id}"></div></div>`;
   // Add preview panel for group stage matches (skip in bulk views for performance)
   if(!skipPreview && (m.round === '1' || m.round === '2' || m.round === '3')) {
     const preview = buildPreviewPanel(m.id);
@@ -2279,6 +2304,7 @@ function onParticipantChange(){
 
   renderMatches();
   if(predictions[name]) loadPredictions(name);
+  updateSubmitState();
 }
 function onPinInput() {
   const input = document.getElementById('user-pin-input');
@@ -2352,6 +2378,7 @@ function loadPredictions(name){
       if(away && pr.away !== undefined) away.value = pr.away;
     }
   });
+  updateSubmitState();
 }
 
 function clearInputs(){
@@ -2380,9 +2407,137 @@ function scoreSpecials(pred, actual) {
 }
 
 
+function toggleAdvancedViews(btn) {
+  const bar = document.getElementById('view-mode-bar');
+  if(!bar) return;
+  const open = !bar.classList.contains('show-advanced');
+  bar.classList.toggle('show-advanced', open);
+  if(btn) btn.textContent = open ? 'Fewer views' : 'More views';
+}
+
+function showFirstTimeWelcome(user) {
+  const card = document.getElementById('first-time-welcome');
+  if(!card || !user?.email) return;
+  const key = 'wc26_welcome_seen_' + user.email;
+  card.classList.toggle('hidden', localStorage.getItem(key) === '1');
+}
+
+function dismissWelcomeCard() {
+  const card = document.getElementById('first-time-welcome');
+  if(card) card.classList.add('hidden');
+  if(currentUser?.email) localStorage.setItem('wc26_welcome_seen_' + currentUser.email, '1');
+}
+
+function getCurrentSpecialsDraft() {
+  return {
+    winner:   document.getElementById('s-winner')?.value || '',
+    runnerUp: document.getElementById('s-runnerup')?.value || '',
+    topScorer:document.getElementById('s-topscorer')?.value || '',
+    surprise: document.getElementById('s-surprise')?.value || '',
+    sf1:document.getElementById('s-sf1')?.value || '',
+    sf2:document.getElementById('s-sf2')?.value || '',
+    sf3:document.getElementById('s-sf3')?.value || '',
+    sf4:document.getElementById('s-sf4')?.value || '',
+  };
+}
+
+function countUnsavedPredictions(name) {
+  if(!name) return 0;
+  const saved = predictions[name] || {};
+  let count = 0;
+  const draftSpecials = getCurrentSpecialsDraft();
+  const hasAnySpecial = Object.values(draftSpecials).some(Boolean);
+  if(hasAnySpecial) {
+    const old = saved.specials || {};
+    const changed = ['winner','runnerUp','topScorer','surprise','sf1','sf2','sf3','sf4']
+      .some(k => (draftSpecials[k] || '') !== (old[k] || ''));
+    if(changed) count++;
+  }
+  document.querySelectorAll('.match-card').forEach(card => {
+    const matchId = card.id?.replace('match-','');
+    if(!matchId || results[matchId] || isMatchLocked(matchId)) return;
+    const h = document.getElementById('h-'+matchId)?.value;
+    const a = document.getElementById('a-'+matchId)?.value;
+    if(h === '' && a === '') return;
+    const old = saved[matchId];
+    if(!old || Number(h) !== Number(old.home) || Number(a) !== Number(old.away)) count++;
+  });
+  return count;
+}
+
+function updateMatchSaveStatuses() {
+  const name = document.getElementById('participant-select')?.value;
+  const saved = name ? (predictions[name] || {}) : {};
+  document.querySelectorAll('.match-card').forEach(card => {
+    const matchId = card.id?.replace('match-','');
+    if(!matchId) return;
+    const status = document.getElementById('save-'+matchId);
+    if(!status) return;
+    card.classList.remove('saved-card','unsaved-card');
+    status.className = 'match-save-status';
+    status.textContent = '';
+    if(results[matchId] || isMatchLocked(matchId)) return;
+    const h = document.getElementById('h-'+matchId)?.value;
+    const a = document.getElementById('a-'+matchId)?.value;
+    const old = saved[matchId];
+    if(h === '' && a === '') return;
+    if(h === '' || a === '') {
+      status.textContent = 'Enter both scores before submitting';
+      status.classList.add('partial');
+      return;
+    }
+    if(old && Number(h) === Number(old.home) && Number(a) === Number(old.away)) {
+      status.textContent = '✓ Saved';
+      status.classList.add('saved');
+      card.classList.add('saved-card');
+    } else {
+      status.textContent = 'Unsaved prediction';
+      status.classList.add('unsaved');
+      card.classList.add('unsaved-card');
+    }
+  });
+}
+
+function updateSubmitState() {
+  const name = document.getElementById('participant-select')?.value;
+  const btn = document.getElementById('main-submit-btn');
+  const note = document.getElementById('submit-note');
+  if(!btn || !note) return;
+  btn.classList.remove('unsaved','clean');
+  if(!name) {
+    btn.disabled = true;
+    btn.textContent = 'Submit predictions';
+    note.textContent = 'Select your name above to enable submission';
+    return;
+  }
+  const unsaved = countUnsavedPredictions(name);
+  btn.disabled = false;
+  if(unsaved > 0) {
+    btn.textContent = `Submit ${unsaved} unsaved prediction${unsaved !== 1 ? 's' : ''}`;
+    btn.classList.add('unsaved');
+    note.textContent = `${unsaved} unsaved item${unsaved !== 1 ? 's' : ''} waiting to be saved`;
+  } else {
+    btn.textContent = 'All saved';
+    btn.classList.add('clean');
+    note.textContent = 'All visible predictions are saved';
+  }
+  updateMatchSaveStatuses();
+}
+
+function wirePredictionChangeTracking() {
+  document.addEventListener('input', e => {
+    if(e.target?.classList?.contains('score-input') || e.target?.id?.startsWith('s-')) updateSubmitState();
+  });
+  document.addEventListener('change', e => {
+    if(e.target?.classList?.contains('score-input') || e.target?.id?.startsWith('s-')) updateSubmitState();
+  });
+}
+
+
 
 async function submitPredictions(){
   const name=document.getElementById('participant-select').value;
+  const submitBtn = document.getElementById('main-submit-btn');
   if(!name){showToast('Select your name first',true);return;}
 
   // PIN check on submit — if PIN is set, must be verified
@@ -2447,7 +2602,6 @@ async function submitPredictions(){
     }));
   });
   // Show saving state
-  const submitBtn = document.getElementById('main-submit-btn');
   const origText = submitBtn?.textContent;
   if(submitBtn) { submitBtn.textContent = 'Saving…'; submitBtn.disabled = true; }
 
@@ -2455,8 +2609,8 @@ async function submitPredictions(){
     await Promise.all(writes);
     if(submitBtn) { submitBtn.textContent = '✓ Saved'; submitBtn.style.background = 'var(--green-dk)'; }
     setTimeout(() => {
-      if(submitBtn) { submitBtn.textContent = 'Submit predictions'; submitBtn.style.background = ''; submitBtn.disabled = false; }
-    }, 2500);
+      if(submitBtn) { submitBtn.style.background = ''; submitBtn.disabled = false; updateSubmitState(); }
+    }, 1200);
     const badge = document.getElementById('submitted-badge');
     const badgeText = document.getElementById('submitted-badge-text');
     const matchCount = Object.keys(matchPreds).length;
@@ -2474,10 +2628,12 @@ async function submitPredictions(){
     }
     const note = document.getElementById('submit-note');
     if(note) note.textContent = `Last saved at ${new Date().toLocaleTimeString()}`;
+    updateMatchSaveStatuses();
+    updateSubmitState();
     showToast(`✓ ${matchCount} match prediction${matchCount!==1?'s':''} saved`);
   } catch(err) {
     console.error('submitPredictions error:', err);
-    if(submitBtn) { submitBtn.textContent = 'Submit predictions'; submitBtn.style.background = ''; submitBtn.disabled = false; }
+    if(submitBtn) { submitBtn.style.background = ''; submitBtn.disabled = false; updateSubmitState(); }
     showToast('Error saving — check console', true);
   }
 }
@@ -2543,19 +2699,16 @@ function scoreMatchBreakdown(pred,actual){
 function calcScores(){
   const s={};
   participants.forEach(name=>{
-    s[name]={total:0,byGroup:{},correct:0,exact:0,played:0,predicted:0,missed:0,specials:0};
+    s[name]={total:0,byGroup:{},correct:0,exact:0,played:0,specials:0};
     const p=predictions[name]||{};
     // Match scores
     ALL_MATCHES.forEach(m=>{
       if(!results[m.id])return;
-      const pred = p[m.id];
-      const bd=scoreMatchBreakdown(pred,results[m.id]);
+      const bd=scoreMatchBreakdown(p[m.id],results[m.id]);
       const g=m.group||'other';
       s[name].total+=bd.total;
       s[name].byGroup[g]=(s[name].byGroup[g]||0)+bd.total;
       s[name].played++;
-      if(pred && pred.home !== undefined && pred.away !== undefined) s[name].predicted++;
-      else s[name].missed++;
       if(bd.result>0)s[name].correct++;
       if(bd.score===6)s[name].exact++;
       if(bd.score>0)s[name].scoreHits=(s[name].scoreHits||0)+1;
@@ -2583,8 +2736,8 @@ function renderDashboard(){
   lb.innerHTML=`<h3>Leaderboard <span style="font-size:12px;font-weight:400;color:var(--t3);margin-left:8px;">${played} result${played!==1?'s':''} in${hasSpecials?' · specials scored':''}</span></h3>`;
   const hdr=document.createElement('div');hdr.className='lb-row header';
   const hdrCols = hasSpecials
-    ? `<span>#</span><span>Participant</span><span>Points</span><span>Specials</span><span>Total Score</span><span>Predictions</span><span>Exact</span>`
-    : `<span>#</span><span>Participant</span><span>Points</span><span>Predictions</span><span>Exact</span><span>Missed</span>`;
+    ? `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">+Spc</span><span style="text-align:right">Tot</span><span style="text-align:right">Pred</span><span style="text-align:right">✓✓</span>`
+    : `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">Pred</span><span style="text-align:right">✓✓</span><span style="text-align:right">Miss</span>`;
   hdr.innerHTML=hdrCols;
   lb.appendChild(hdr);
   ranked.forEach(([name,s],i)=>{
@@ -2592,7 +2745,7 @@ function renderDashboard(){
     const row=document.createElement('div');row.className='lb-row';
     const matchPts   = s.total - s.specials;
     const predCell   = s.played > 0
-      ? `${s.predicted ?? 0}<span style="font-size:10px;color:var(--t3);">/${s.played}</span>`
+      ? `${s.predicted}<span style="font-size:10px;color:var(--t3);">/${s.played}</span>`
       : '—';
     const missedCell = s.missed > 0
       ? `<span style="color:var(--red-dk);">${s.missed}</span>`
@@ -3246,7 +3399,10 @@ function onLoginSuccess(user) {
     btn.classList.toggle('active', map[btn.textContent.trim()] === 'next');
   });
   // Re-render now that view mode and user are both set
+  showFirstTimeWelcome(user);
   renderMatches();
+  if(predictions[user.name]) loadPredictions(user.name);
+  updateSubmitState();
 
   showToast('Welcome back, ' + user.name + '! 👋');
 }
@@ -3468,15 +3624,18 @@ function finishInit() {
   }
   renderChips();
   renderMatches();
+  updateSubmitState();
   renderPhaseToggles();
   updatePhaseBadges();
+  if(matchViewMode === 'country') document.getElementById('view-mode-bar')?.classList.add('show-advanced');
   document.querySelectorAll('.view-mode-btn').forEach(btn => {
     const map = {'Next match':'next','Next 7 days':'upcoming7','Matchday':'round','Group':'group','By country':'country','All matches':'all'};
     btn.classList.toggle('active', map[btn.textContent.trim()] === matchViewMode);
   });
 }
 
-// 3. Kick off — loads all state from Supabase, then calls finishInit()
+// 3. Track unsaved prediction changes and kick off — loads all state from Supabase, then calls finishInit()
+wirePredictionChangeTracking();
 initApp();
 
 </script>
