@@ -1346,13 +1346,15 @@ create policy "anon all" on predictions  for all using (true) with check (true);
 
 // ── MICROSOFT TEAMS INIT ──
 // Initialise Teams SDK if running inside Teams
-(function() {
-  if(window.microsoftTeams) {
-    microsoftTeams.app.initialize().then(() => {
-      microsoftTeams.app.notifyAppLoaded();
-      microsoftTeams.app.notifySuccess();
-    }).catch(() => {});
-  }
+(function () {
+  const isInTeams = window.self !== window.top || /Teams|Microsoft Teams/i.test(navigator.userAgent);
+  if (!isInTeams || !window.microsoftTeams?.app) return;
+  window.microsoftTeams.app.initialize()
+    .then(() => {
+      window.microsoftTeams.app.notifyAppLoaded();
+      window.microsoftTeams.app.notifySuccess();
+    })
+    .catch(err => console.warn('Teams SDK skipped:', err));
 })();
 
 // ════════════════════════════════════════════════════════════
@@ -2096,7 +2098,15 @@ function checkPin() {
     if(po) po.style.display = 'none';
     document.getElementById('pin-input').value = '';
     document.getElementById('pin-error').textContent = '';
-    initAdmin();
+    const adminPanel = document.getElementById('admin-panel');
+    const adminTab = document.getElementById('tab-admin');
+    if (adminPanel) adminPanel.style.display = 'block';
+    if (adminTab) adminTab.style.display = 'block';
+    initAdmin().catch(err => {
+      console.error('Admin initialisation failed:', err);
+      hideLoadingOverlay?.();
+      showToast?.('Admin loaded, but some data failed to sync. Check console/Supabase tables.', true);
+    });
   } else {
     document.getElementById('pin-error').textContent = 'Incorrect PIN. Try again.';
     document.getElementById('pin-input').value = '';
@@ -3154,7 +3164,15 @@ function checkPin() {
     if(po) po.style.display = 'none';
     document.getElementById('pin-input').value = '';
     document.getElementById('pin-error').textContent = '';
-    initAdmin();
+    const adminPanel = document.getElementById('admin-panel');
+    const adminTab = document.getElementById('tab-admin');
+    if (adminPanel) adminPanel.style.display = 'block';
+    if (adminTab) adminTab.style.display = 'block';
+    initAdmin().catch(err => {
+      console.error('Admin initialisation failed:', err);
+      hideLoadingOverlay?.();
+      showToast?.('Admin loaded, but some data failed to sync. Check console/Supabase tables.', true);
+    });
   } else {
     document.getElementById('pin-error').textContent = 'Incorrect PIN. Try again.';
     document.getElementById('pin-input').value = '';
@@ -3282,7 +3300,13 @@ async function initAdmin() {
     const km={'actual-winner':'winner','actual-runnerup':'runnerUp','actual-surprise':'surprise','actual-sf1':'sf1','actual-sf2':'sf2','actual-sf3':'sf3','actual-sf4':'sf4'};
     if(specialsActual[km[id]]) el.value=specialsActual[km[id]];
   });
-  document.getElementById('admin-panel').style.display='block';
+  // Make sure both the outer admin container and the actual admin tab are visible.
+  // Previously the PIN check loaded admin data, but #tab-admin stayed display:none,
+  // which made the page render as an empty shell.
+  const adminPanel = document.getElementById('admin-panel');
+  const adminTab = document.getElementById('tab-admin');
+  if (adminPanel) adminPanel.style.display = 'block';
+  if (adminTab) adminTab.style.display = 'block';
 }
 // DOMContentLoaded replaced below
 
