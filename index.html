@@ -436,9 +436,33 @@ select.portal-input option{background:#fff;}
 .dash-card p.sub{font-size:14px;color:var(--t3);margin-bottom:14px;}
 
 /* leaderboard */
-.lb-row{display:grid;grid-template-columns:32px 1fr 52px 52px 58px 52px 44px;align-items:center;gap:3px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
-.lb-row:last-child{border-bottom:none;}
-.lb-row.header{color:var(--t3);font-size:14px;text-transform:uppercase;letter-spacing:.8px;padding-bottom:8px;font-family:'DM Mono',monospace;}
+.lb-table{display:flex;flex-direction:column;gap:6px;}
+.lb-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;transition:border-color .15s;}
+.lb-card:hover{border-color:var(--border-md);}
+.lb-card.rank-1{border-color:rgba(255,215,0,.3);background:rgba(255,215,0,.04);}
+.lb-card.rank-2{border-color:rgba(192,192,192,.3);background:rgba(192,192,192,.03);}
+.lb-card.rank-3{border-color:rgba(205,127,50,.25);background:rgba(205,127,50,.03);}
+.lb-card-top{display:flex;align-items:center;gap:10px;}
+.lb-rank{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--t3);min-width:22px;text-align:center;}
+.lb-rank.gold{color:#c9a227;}
+.lb-rank.silver{color:#9ba3af;}
+.lb-rank.bronze{color:#b87333;}
+.lb-card-name{flex:1;min-width:0;}
+.lb-player-name{font-size:15px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lb-fn-badge-wrap{margin-top:2px;}
+.lb-pts-block{text-align:right;flex-shrink:0;}
+.lb-pts-total{font-family:'DM Mono',monospace;font-size:22px;font-weight:800;color:var(--teal-mid);line-height:1;}
+.lb-pts-label{font-size:10px;color:var(--t3);margin-top:1px;}
+.lb-card-stats{display:flex;gap:14px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+.lb-stat{display:flex;flex-direction:column;align-items:center;gap:1px;}
+.lb-stat-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--t1);}
+.lb-stat-lbl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;white-space:nowrap;}
+.lb-bar-wrap{flex:1;margin-left:4px;display:flex;align-items:center;}
+.lb-bar-track{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+.lb-bar-fill{height:100%;background:linear-gradient(90deg,var(--teal),#4fcfc3);border-radius:2px;transition:width .4s ease;}
+.lb-specials-badge{font-family:'DM Mono',monospace;font-size:11px;color:var(--amber-dk);font-weight:700;}
+/* old lb-row kept for compatibility */
+.lb-row{display:none;}
 .rank-no{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;font-family:'DM Mono',monospace;}
 .r1{background:var(--amber-bg);color:var(--amber-dk);border:1px solid rgba(186,146,0,.25);}
 .r2{background:#F0F1F3;color:#6b7280;border:1px solid #dde0e5;}
@@ -2726,22 +2750,24 @@ function scoreMatchBreakdown(pred,actual){
 }
 function calcScores(){
   const s={};
+  const totalResultsEntered = ALL_MATCHES.filter(m=>results[m.id]).length;
   participants.forEach(name=>{
-    s[name]={total:0,byGroup:{},correct:0,exact:0,played:0,specials:0};
+    s[name]={total:0,byGroup:{},correct:0,exact:0,played:0,predicted:0,missed:0,specials:0};
     const p=predictions[name]||{};
-    // Match scores
     ALL_MATCHES.forEach(m=>{
       if(!results[m.id])return;
+      const hasPred = p[m.id] && p[m.id].home!==undefined && p[m.id].away!==undefined;
       const bd=scoreMatchBreakdown(p[m.id],results[m.id]);
       const g=m.group||'other';
       s[name].total+=bd.total;
       s[name].byGroup[g]=(s[name].byGroup[g]||0)+bd.total;
       s[name].played++;
+      if(hasPred){ s[name].predicted++; }
+      else { s[name].missed++; }
       if(bd.result>0)s[name].correct++;
       if(bd.score===6)s[name].exact++;
       if(bd.score>0)s[name].scoreHits=(s[name].scoreHits||0)+1;
     });
-    // Specials score
     const spts=scoreSpecials(p.specials, specialsActual);
     s[name].total+=spts;
     s[name].specials=spts;
@@ -2838,71 +2864,109 @@ function renderDashboard(){
   c.appendChild(aCard);
 
   // Predictions by Function
-  const fnCard=document.createElement('div');fnCard.className='dash-card';
-  fnCard.innerHTML=`<h3>Predictions by Function</h3><p style="font-size:12px;color:var(--t3);margin-bottom:18px;">Average points per Function across completed matches</p>`;
-  const fnScores={};
-  Object.entries(FUNCTIONS).forEach(([key])=>{fnScores[key]={total:0,count:0};});
-  participants.forEach(name=>{
-    const fnKey=participantFunctions[name];
-    if(!fnKey||!fnScores[fnKey])return;
-    fnScores[fnKey].total+=scores[name]?.total||0;
+  const fnCard = document.createElement('div'); fnCard.className = 'dash-card';
+  fnCard.innerHTML = '<h3>By Function</h3>';
+  const fnScores = {};
+  Object.entries(FUNCTIONS).forEach(([key]) => { fnScores[key] = {total:0, count:0}; });
+  participants.forEach(name => {
+    const fnKey = participantFunctions[name];
+    if(!fnKey || !fnScores[fnKey]) return;
+    fnScores[fnKey].total += scores[name]?.total || 0;
     fnScores[fnKey].count++;
   });
-  const fnEntries=Object.entries(FUNCTIONS).map(([key,f])=>{
-    const avg=fnScores[key].count>0?(fnScores[key].total/fnScores[key].count).toFixed(1):0;
-    return {key,f,avg:parseFloat(avg),total:fnScores[key].total,count:fnScores[key].count};
-  }).sort((a,b)=>b.avg-a.avg);
-  const maxFnAvg=Math.max(...fnEntries.map(e=>e.avg),1);
-  fnEntries.forEach(({key,f,avg,total,count})=>{
-    const row=document.createElement('div');row.className='fn-row';
-    row.innerHTML=`<div class="fn-row-label"><span class="fn-badge ${f.cls}">${f.label}</span></div><div class="fn-bar-track"><div class="fn-bar-fill" style="width:${((avg/maxFnAvg)*100).toFixed(1)}%;background:${f.color};"></div></div><span class="fn-pts">${avg} avg</span>`;
+  const fnEntries = Object.entries(FUNCTIONS).map(([key, f]) => {
+    const avg = fnScores[key].count > 0 ? (fnScores[key].total / fnScores[key].count).toFixed(1) : '—';
+    return {key, f, avg, total: fnScores[key].total, count: fnScores[key].count};
+  }).sort((a, b) => parseFloat(b.avg)||0 - parseFloat(a.avg)||0);
+  const maxFnTotal = Math.max(...fnEntries.map(e => e.total), 1);
+  fnEntries.forEach(({key, f, avg, total, count}) => {
+    if(count === 0) return; // skip empty groups
+    const pct = Math.round((total / maxFnTotal) * 100);
+    const row = document.createElement('div');
+    row.style.cssText = 'margin-bottom:12px;';
+    row.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">' +
+        '<span class="fn-badge ' + f.cls + '" style="font-size:11px;">' + f.label + '</span>' +
+        '<div style="display:flex;align-items:baseline;gap:10px;">' +
+          '<span style="font-family:\"DM Mono\",monospace;font-size:16px;font-weight:800;color:var(--t1);">' + (avg==='—'?'—':avg) + '</span>' +
+          '<span style="font-size:10px;color:var(--t3);">avg</span>' +
+          '<span style="font-size:11px;color:var(--t3);">·</span>' +
+          '<span style="font-size:12px;color:var(--t3);">' + total + ' total</span>' +
+        '</div>' +
+      '</div>' +
+      '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">' +
+        '<div style="height:100%;width:' + pct + '%;background:' + f.color + ';border-radius:3px;transition:width .4s;"></div>' +
+      '</div>' +
+      '<div style="font-size:10px;color:var(--t4);margin-top:3px;">' + count + ' participant' + (count!==1?'s':'') + '</div>';
     fnCard.appendChild(row);
-    const sub=document.createElement('div');sub.style.cssText='font-size:11px;color:var(--t3);margin:-6px 0 10px 0;padding-left:2px;';
-    sub.textContent=`${count} participant${count!==1?'s':''} · ${total} total pts`;
-    fnCard.appendChild(sub);
   });
   c.appendChild(fnCard);
 
   // ── Predictions by Country ──
   const countryCard = document.createElement('div');
   countryCard.className = 'dash-card';
-  countryCard.innerHTML = `<h3>Predictions by Country</h3><p style="font-size:12px;color:var(--t3);margin-bottom:18px;">Average points per country team across completed matches</p>`;
+  countryCard.innerHTML = '<h3>By Country</h3>';
   const ctyScores = {};
-  Object.entries(COUNTRIES).forEach(([key]) => { ctyScores[key] = { total:0, count:0 }; });
+  Object.entries(COUNTRIES).forEach(([key]) => { ctyScores[key] = {total:0, count:0}; });
   participants.forEach(name => {
     const ctyKey = participantCountries[name];
     if(!ctyKey || !ctyScores[ctyKey]) return;
     ctyScores[ctyKey].total += scores[name]?.total || 0;
     ctyScores[ctyKey].count++;
   });
-  const ctyEntries = Object.entries(COUNTRIES).map(([key, c]) => {
-    const avg = ctyScores[key].count > 0 ? (ctyScores[key].total / ctyScores[key].count).toFixed(1) : 0;
-    return { key, c, avg: parseFloat(avg), total: ctyScores[key].total, count: ctyScores[key].count };
-  }).sort((a, b) => b.avg - a.avg);
-  const maxCtyAvg = Math.max(...ctyEntries.map(e => e.avg), 1);
-  ctyEntries.forEach(({ key, c, avg, total, count }) => {
-    const row = document.createElement('div'); row.className = 'fn-row';
-    row.innerHTML = `<div class="fn-row-label"><span class="fn-badge ${c.cls}">${c.label}</span></div><div class="fn-bar-track"><div class="fn-bar-fill" style="width:${Math.round((avg/maxCtyAvg)*100)}%;background:${c.color};"></div></div><div class="fn-pts">${avg} avg</div>`;
+  const ctyEntries = Object.entries(COUNTRIES).map(([key, ct]) => {
+    const avg = ctyScores[key].count > 0 ? (ctyScores[key].total / ctyScores[key].count).toFixed(1) : '—';
+    return {key, ct, avg, total: ctyScores[key].total, count: ctyScores[key].count};
+  }).sort((a, b) => (parseFloat(b.avg)||0) - (parseFloat(a.avg)||0));
+  const maxCtyTotal = Math.max(...ctyEntries.map(e => e.total), 1);
+  ctyEntries.forEach(({key, ct, avg, total, count}) => {
+    if(count === 0) return;
+    const pct = Math.round((total / maxCtyTotal) * 100);
+    const row = document.createElement('div');
+    row.style.cssText = 'margin-bottom:12px;';
+    row.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">' +
+        '<span class="fn-badge ' + ct.cls + '" style="font-size:11px;">' + ct.label + '</span>' +
+        '<div style="display:flex;align-items:baseline;gap:10px;">' +
+          '<span style="font-family:\"DM Mono\",monospace;font-size:16px;font-weight:800;color:var(--t1);">' + (avg==='—'?'—':avg) + '</span>' +
+          '<span style="font-size:10px;color:var(--t3);">avg</span>' +
+          '<span style="font-size:11px;color:var(--t3);">·</span>' +
+          '<span style="font-size:12px;color:var(--t3);">' + total + ' total</span>' +
+        '</div>' +
+      '</div>' +
+      '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">' +
+        '<div style="height:100%;width:' + pct + '%;background:' + ct.color + ';border-radius:3px;transition:width .4s;"></div>' +
+      '</div>' +
+      '<div style="font-size:10px;color:var(--t4);margin-top:3px;">' + count + ' participant' + (count!==1?'s':'') + '</div>';
     countryCard.appendChild(row);
-    const sub = document.createElement('div'); sub.style.cssText = 'font-size:11px;color:var(--t3);margin:-6px 0 10px 0;padding-left:4px;';
-    sub.textContent = `${count} participant${count!==1?'s':''} · ${total} total pts`;
-    countryCard.appendChild(sub);
   });
   c.appendChild(countryCard);
 
   // ── FUN STATS ──
-  const funCard=document.createElement('div');funCard.className='dash-card';
-  funCard.innerHTML=`<h3>Fun stats</h3><p class="sub">Highlights across the tournament so far</p>`;
-  const funGrid=document.createElement('div');funGrid.className='fun-stat-grid';
-  const topTipper=ranked[0];
-  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🎯</div><div class="fun-stat-label">Top Tipper</div><div class="fun-stat-name">${topTipper?esc(topTipper[0]):'TBD'}</div><div class="fun-stat-sub">${topTipper?topTipper[1].total+' pts':''}</div></div>`;
-  const exactLeader=ranked.slice().sort((a,b)=>b[1].exact-a[1].exact)[0];
-  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🔮</div><div class="fun-stat-label">Exact Score Prophet</div><div class="fun-stat-name">${exactLeader&&exactLeader[1].exact>0?esc(exactLeader[0]):'TBD'}</div><div class="fun-stat-sub">${exactLeader&&exactLeader[1].exact>0?exactLeader[1].exact+' exact scores':''}</div></div>`;
-  // Upset King stat hidden (kept for future use)
-  const lastMs=ALL_MATCHES.filter(m=>results[m.id]).slice(-3);
-  const recentPts={};participants.forEach(n=>{recentPts[n]=lastMs.reduce((s,m)=>s+scoreMatch((predictions[n]||{})[m.id],results[m.id]),0);});
-  const hotStreak=Object.entries(recentPts).sort((a,b)=>b[1]-a[1])[0];
-  funGrid.innerHTML+=`<div class="fun-stat-card"><div class="fun-stat-emoji">🔥</div><div class="fun-stat-label">On Fire (last 3)</div><div class="fun-stat-name">${hotStreak&&hotStreak[1]>0?esc(hotStreak[0]):'TBD'}</div><div class="fun-stat-sub">${hotStreak&&hotStreak[1]>0?hotStreak[1]+' pts':''}</div></div>`;
+  const funCard = document.createElement('div'); funCard.className = 'dash-card';
+  funCard.innerHTML = '<h3>Fun stats</h3><p class="sub">Highlights across the tournament so far</p>';
+  const funGrid = document.createElement('div'); funGrid.className = 'fun-stat-grid';
+
+  // Top Tipper
+  const topTipper = ranked[0];
+  funGrid.innerHTML += `<div class="fun-stat-card"><div class="fun-stat-emoji">🎯</div><div class="fun-stat-label">Top Tipper</div><div class="fun-stat-name">${topTipper?esc(topTipper[0]):'TBD'}</div><div class="fun-stat-sub">${topTipper?topTipper[1].total+' pts':''}</div></div>`;
+
+  // The Oracle — most exact scores
+  const oracle = ranked.slice().sort((a,b) => b[1].exact - a[1].exact)[0];
+  funGrid.innerHTML += `<div class="fun-stat-card"><div class="fun-stat-emoji">🔮</div><div class="fun-stat-label">The Oracle</div><div class="fun-stat-sub-label" style="font-size:10px;color:var(--t3);margin:-4px 0 4px;">Most exact scores</div><div class="fun-stat-name">${oracle&&oracle[1].exact>0?esc(oracle[0]):'TBD'}</div><div class="fun-stat-sub">${oracle&&oracle[1].exact>0?oracle[1].exact+' exact scores':''}</div></div>`;
+
+  // On Fire — best in last 3 matches
+  const lastMs = ALL_MATCHES.filter(m => results[m.id]).slice(-3);
+  const recentPts = {}; participants.forEach(n => { recentPts[n] = lastMs.reduce((s,m) => s + scoreMatch((predictions[n]||{})[m.id], results[m.id]), 0); });
+  const hotStreak = Object.entries(recentPts).sort((a,b) => b[1]-a[1])[0];
+  funGrid.innerHTML += `<div class="fun-stat-card"><div class="fun-stat-emoji">🔥</div><div class="fun-stat-label">On Fire</div><div class="fun-stat-sub-label" style="font-size:10px;color:var(--t3);margin:-4px 0 4px;">Last 3 matches</div><div class="fun-stat-name">${hotStreak&&hotStreak[1]>0?esc(hotStreak[0]):'TBD'}</div><div class="fun-stat-sub">${hotStreak&&hotStreak[1]>0?hotStreak[1]+' pts':''}</div></div>`;
+
+  // Top Country — highest average points
+  const topCtyEntry = ctyEntries.find(e => e.count > 0 && parseFloat(e.avg) > 0);
+  if(topCtyEntry) {
+    funGrid.innerHTML += `<div class="fun-stat-card"><div class="fun-stat-emoji">🌏</div><div class="fun-stat-label">Top Country</div><div class="fun-stat-sub-label" style="font-size:10px;color:var(--t3);margin:-4px 0 4px;">Highest avg pts</div><div class="fun-stat-name"><span class="fn-badge ${topCtyEntry.ct.cls}">${topCtyEntry.ct.label}</span></div><div class="fun-stat-sub">${topCtyEntry.avg} avg · ${topCtyEntry.count} players</div></div>`;
+  }
+
   funCard.appendChild(funGrid);
   c.appendChild(funCard);
 }
