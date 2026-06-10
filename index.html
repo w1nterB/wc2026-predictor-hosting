@@ -1640,6 +1640,49 @@ async function postToSheet(payload) {
 //  INIT — called on page load
 // ════════════════════════════════════════════════════════════
 
+
+function finishInit() {
+  GROUPS = getGroups();
+
+  // Set dynamic tournament dates
+  const tz = getUserTZ();
+  const allUtcTimes = ALL_MATCHES.map(m => new Date(m.utc)).filter(d => !isNaN(d));
+  if(allUtcTimes.length) {
+    const first = new Date(Math.min(...allUtcTimes));
+    const last  = new Date(Math.max(...allUtcTimes));
+    const fmt = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:tz});
+    const dateStr = fmt(first) + ' — ' + fmt(last);
+    const sbDates = document.getElementById('sb-tourney-dates');
+    if(sbDates) sbDates.textContent = dateStr + ' · USA / MEX / CAN';
+    const topMeta = document.getElementById('topbar-meta');
+    if(topMeta) topMeta.textContent = ALL_MATCHES.length + ' matches · ' + dateStr;
+  }
+
+  // Rebuild participant dropdown
+  const sel = document.getElementById('participant-select');
+  if(sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— select your name —</option>';
+    participants.forEach(name => {
+      const o = document.createElement('option');
+      o.value = name; o.textContent = name;
+      sel.appendChild(o);
+    });
+    if(cur && participants.includes(cur)) sel.value = cur;
+  }
+  renderChips();
+  renderMatches();
+  updateSubmitState();
+  renderPhaseToggles();
+  updatePhaseBadges();
+  const viewBar = document.getElementById('view-mode-bar');
+  if(viewBar && matchViewMode === 'country') viewBar.classList.add('show-advanced');
+  document.querySelectorAll('.view-mode-btn').forEach(btn => {
+    const map = {'Next match':'next','Next 7 days':'upcoming7','Matchday':'round','Group':'group','By country':'country','All matches':'all'};
+    btn.classList.toggle('active', map[btn.textContent.trim()] === matchViewMode);
+  });
+}
+
 async function initApp() {
   const urlSet = SUPABASE_URL  && SUPABASE_URL  !== 'YOUR_SUPABASE_URL';
   const keySet = SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
@@ -1711,14 +1754,15 @@ let ALL_MATCHES = [];
 
 
 // Groups derived from match data
-const GROUPS=(()=>{
+function getGroups(){
   const gmap={};
   ALL_MATCHES.filter(m=>m.group&&m.group.startsWith('Group')).forEach(m=>{
     if(!gmap[m.group])gmap[m.group]={name:m.group,matches:[]};
     gmap[m.group].matches.push(m);
   });
   return Object.values(gmap).sort((a,b)=>a.name.localeCompare(b.name));
-})();
+}
+let GROUPS=[];
 
 // ── USER TIMEZONE ──
 function getUserTZ(){ return Intl.DateTimeFormat().resolvedOptions().timeZone; }
@@ -2953,6 +2997,8 @@ function renderDashboard(){
 
   // ══ BY FUNCTION PANE ══
   const fnPane = panes['fn'];
+  const fnCard2 = document.createElement('div'); fnCard2.className = 'dash-card';
+  fnCard2.innerHTML = '<h3>By Function</h3><p class="sub">Total points and average per department</p>';
   const fnScores={};
   Object.entries(FUNCTIONS).forEach(([key])=>{fnScores[key]={total:0,count:0};});
   participants.forEach(name=>{
@@ -2966,32 +3012,36 @@ function renderDashboard(){
     return {key,f,avg,total:fnScores[key].total,count:fnScores[key].count};
   }).sort((a,b)=>(parseFloat(b.avg)||0)-(parseFloat(a.avg)||0));
   const maxFnTotal=Math.max(...fnEntries.map(e=>e.total),1);
+  let fnHasData = false;
   fnEntries.forEach(({key,f,avg,total,count})=>{
     if(count===0)return;
+    fnHasData = true;
     const pct=Math.round((total/maxFnTotal)*100);
-    const row=document.createElement('div');row.className='group-stat-row';
+    const row=document.createElement('div');
+    row.style.cssText='margin-bottom:18px;';
     row.innerHTML=
-      `<div style="width:32px;height:32px;border-radius:8px;background:${f.color}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;">` +
-        `<span class="fn-badge ${f.cls}" style="font-size:9px;border-radius:4px;">${f.label.split(' ')[0]}</span>` +
-      `</div>` +
-      `<div class="group-stat-info">` +
-        `<div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:4px;">${f.label}</div>` +
-        `<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">` +
-          `<div style="height:100%;width:${pct}%;background:${f.color};border-radius:3px;transition:width .5s;"></div>` +
-        `</div>` +
-      `</div>` +
-      `<div class="group-stat-nums">` +
-        `<div class="group-stat-total">${total}</div>` +
-        `<div class="group-stat-meta">${avg} avg · ${count} player${count!==1?'s':''}</div>` +
-      `</div>`;
-    fnPane.appendChild(row);
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
+        '<span class="fn-badge ' + f.cls + '">' + f.label + '</span>' +
+        '<div style="text-align:right;">' +
+          '<span style="font-family:'DM Mono',monospace;font-size:20px;font-weight:800;color:var(--t1);">' + total + '</span>' +
+          '<span style="font-size:11px;color:var(--t3);margin-left:6px;">pts total</span>' +
+        '</div>' +
+      '</div>' +
+      '<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:5px;">' +
+        '<div style="height:100%;width:' + pct + '%;background:' + f.color + ';border-radius:4px;transition:width .5s;"></div>' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--t3);">' +
+        avg + ' pts average · ' + count + ' player' + (count!==1?'s':'') +
+      '</div>';
+    fnCard2.appendChild(row);
   });
-  if(!fnPane.querySelector('.group-stat-row')){
-    fnPane.innerHTML='<p style="color:var(--t3);font-size:13px;padding:12px 0;">No data yet — players need to register their function.</p>';
-  }
+  if(!fnHasData) fnCard2.innerHTML += '<p style="color:var(--t3);font-size:13px;margin-top:8px;">No function data yet — players register their function on sign-up.</p>';
+  fnPane.appendChild(fnCard2);
 
   // ══ BY COUNTRY PANE ══
   const ctyPane = panes['cty'];
+  const ctyCard = document.createElement('div'); ctyCard.className = 'dash-card';
+  ctyCard.innerHTML = '<h3>By Country</h3><p class="sub">Total points and average per country team</p>';
   const ctyScores={};
   Object.entries(COUNTRIES).forEach(([key])=>{ctyScores[key]={total:0,count:0};});
   participants.forEach(name=>{
@@ -3005,897 +3055,39 @@ function renderDashboard(){
     return {key,ct,avg,total:ctyScores[key].total,count:ctyScores[key].count};
   }).sort((a,b)=>(parseFloat(b.avg)||0)-(parseFloat(a.avg)||0));
   const maxCtyTotal=Math.max(...ctyEntries.map(e=>e.total),1);
+  let ctyHasData = false;
   ctyEntries.forEach(({key,ct,avg,total,count})=>{
     if(count===0)return;
+    ctyHasData = true;
     const pct=Math.round((total/maxCtyTotal)*100);
-    const row=document.createElement('div');row.className='group-stat-row';
+    const row=document.createElement('div');
+    row.style.cssText='margin-bottom:18px;';
     row.innerHTML=
-      `<div style="width:32px;height:32px;border-radius:8px;background:${ct.color}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;">🌏</div>` +
-      `<div class="group-stat-info">` +
-        `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">` +
-          `<span class="fn-badge ${ct.cls}" style="font-size:10px;">${ct.label}</span>` +
-        `</div>` +
-        `<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">` +
-          `<div style="height:100%;width:${pct}%;background:${ct.color};border-radius:3px;transition:width .5s;"></div>` +
-        `</div>` +
-      `</div>` +
-      `<div class="group-stat-nums">` +
-        `<div class="group-stat-total">${total}</div>` +
-        `<div class="group-stat-meta">${avg} avg · ${count} player${count!==1?'s':''}</div>` +
-      `</div>`;
-    ctyPane.appendChild(row);
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
+        '<span class="fn-badge ' + ct.cls + '">' + ct.label + '</span>' +
+        '<div style="text-align:right;">' +
+          '<span style="font-family:'DM Mono',monospace;font-size:20px;font-weight:800;color:var(--t1);">' + total + '</span>' +
+          '<span style="font-size:11px;color:var(--t3);margin-left:6px;">pts total</span>' +
+        '</div>' +
+      '</div>' +
+      '<div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:5px;">' +
+        '<div style="height:100%;width:' + pct + '%;background:' + ct.color + ';border-radius:4px;transition:width .5s;"></div>' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--t3);">' +
+        avg + ' pts average · ' + count + ' player' + (count!==1?'s':'') +
+      '</div>';
+    ctyCard.appendChild(row);
   });
-  if(!ctyPane.querySelector('.group-stat-row')){
-    ctyPane.innerHTML='<p style="color:var(--t3);font-size:13px;padding:12px 0;">No country data yet — players need to register their country team.</p>';
-  }
+  if(!ctyHasData) ctyCard.innerHTML += '<p style="color:var(--t3);font-size:13px;margin-top:8px;">No country data yet — players select their country team on sign-up.</p>';
+  ctyPane.appendChild(ctyCard);
 
-  // Top Country fun snippet in country pane
-  const topCty=ctyEntries.find(e=>e.count>0&&parseFloat(e.avg)>0);
+  // Leading country tip
+  const topCty = ctyEntries.find(e=>e.count>0&&parseFloat(e.avg)>0);
   if(topCty){
-    const tip=document.createElement('div');tip.style.cssText='margin-top:16px;padding:12px;background:var(--surface);border-radius:8px;border:1px solid var(--border);font-size:12px;color:var(--t3);';
-    tip.innerHTML=`🌏 Leading country: <span class="fn-badge ${topCty.ct.cls}" style="font-size:10px;">${topCty.ct.label}</span> with <strong style="color:var(--t1);">${topCty.avg} avg pts</strong>`;
+    const tip=document.createElement('div');
+    tip.style.cssText='margin-top:14px;padding:12px 14px;background:var(--surface);border-radius:8px;border:1px solid var(--border);font-size:13px;';
+    tip.innerHTML='🌏 Leading country: <span class="fn-badge ' + topCty.ct.cls + '">' + topCty.ct.label + '</span>' +
+      ' with <strong style="color:var(--t1);">' + topCty.avg + '</strong> pts average';
     ctyPane.appendChild(tip);
   }
 }
-
-const TAB_TITLES={predictions:'My Predictions',dashboard:'Leaderboard',public:'Tournament Info',bracket:'Knockout Bracket',admin:'Admin'};
-
-function showTab(name){
-  // Admin requires PIN
-  if(name==='admin' && !adminUnlocked){
-    document.getElementById('pin-overlay').classList.add('show');
-    setTimeout(()=>document.getElementById('pin-input')?.focus(),100);
-    return;
-  }
-  _doShowTab(name);
-}
-
-function _doShowTab(name){
-  ['predictions','dashboard','public','bracket','admin'].forEach(t=>{
-    const el=document.getElementById('tab-'+t);
-    if(el) el.style.display=t===name?'block':'none';
-  });
-  // Hide sticky submit bar when not on predictions tab
-  const bar=document.getElementById('sticky-submit-bar');
-  if(bar) bar.style.display = name==='predictions' ? '' : 'none';
-  document.querySelectorAll('.nav-item').forEach(btn=>{
-    btn.classList.toggle('active',btn.id==='nav-'+name);
-  });
-  const ttEl=document.getElementById('topbar-title');
-  if(ttEl) ttEl.textContent=TAB_TITLES[name]||name;
-  if(name==='dashboard') renderDashboard();
-  if(name==='public') renderPublicPage();
-  if(name==='bracket') renderBracket();
-  if(name==='admin'){ window.location.href='admin.html'; return; }
-}
-
-function renderPublicPage(){
-  const c=document.getElementById('public-content');
-  c.innerHTML='';
-  const scores=calcScores();
-  const ranked=Object.entries(scores).sort((a,b)=>b[1].total-a[1].total);
-  const played=Object.keys(results).length;
-  const groups=GROUPS.map(g=>g.name);
-
-  // ── RULES ──
-  const rulesSec=document.createElement('div');rulesSec.className='pub-section';
-  rulesSec.innerHTML=`
-    <div class="pub-section-title">📋 How to play</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-
-      <div class="pub-group-card">
-        <div class="pub-group-name">Match predictions</div>
-        <div style="font-size:13px;color:var(--t2);line-height:1.8;">
-          For every group stage match, predict the scoreline. Points are awarded independently for <strong>result</strong> and <strong>score accuracy</strong> — you can earn both on the same game.
-        </div>
-        <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--page);border-radius:7px;border:1px solid var(--border);">
-            <span style="font-size:13px;color:var(--t2);">Correct result (W / D / L)</span>
-            <span style="font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:var(--teal-mid);">+3 pts</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--page);border-radius:7px;border:1px solid var(--border);">
-            <span style="font-size:13px;color:var(--t2);">One team's score correct</span>
-            <span style="font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:var(--teal-mid);">+3 pts</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(37,196,179,.06);border-radius:7px;border:1px solid rgba(37,196,179,.25);">
-            <span style="font-size:13px;color:var(--t2);">Exact score (both teams correct)</span>
-            <span style="font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:var(--teal-mid);">+6 pts</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--amber-bg);border-radius:7px;border:1px solid rgba(186,146,0,.2);">
-            <span style="font-size:13px;color:var(--t2);">Max per game (correct result + exact score)</span>
-            <span style="font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:var(--amber-dk);">9 pts</span>
-          </div>
-        </div>
-        <div style="margin-top:10px;font-size:12px;color:var(--t3);">Predictions lock 1 hour before each kickoff. Times shown in your local timezone.</div>
-      </div>
-
-      <div style="display:flex;flex-direction:column;gap:14px;">
-        <div class="pub-group-card">
-          <div class="pub-group-name">Pre-tournament specials</div>
-          <div style="font-size:13px;color:var(--t2);line-height:1.8;margin-bottom:10px;">Submit once before the tournament starts. These lock on 18 June.</div>
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Tournament winner</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">10 pts</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Runner-up</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">7 pts</span></div>
-            
-            <!-- Surprise package rule hidden -->
-            <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">All 4 semi-finalists correct</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">8 pts</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);"><span style="color:var(--t2);">Any 3 of 4 semi-finalists</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">4 pts</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;"><span style="color:var(--t2);">Any 2 of 4 semi-finalists</span><span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--teal-mid);">2 pts</span></div>
-          </div>
-        </div>
-        <div class="pub-group-card">
-          <div class="pub-group-name">Tournament format</div>
-          <div style="font-size:13px;color:var(--t2);line-height:1.8;">48 teams · 12 groups of 4 · Top 2 + 8 best 3rd-place teams advance · Round of 32 → Round of 16 → Quarter-finals → Semi-finals → Final</div>
-          <div style="font-size:12px;color:var(--t3);margin-top:6px;" id="rules-tourney-dates">12 Jun – 19 Jul 2026 · USA, Mexico, Canada</div>
-        </div>
-      </div>
-
-    </div>`;
-  c.appendChild(rulesSec);
-
-  // ── GROUP STAGE GUIDE ──
-  // Group Stage section removed (was empty)
-
-  // ── MATCH SCHEDULE ──
-  const schedSec=document.createElement('div');schedSec.className='pub-section';
-  schedSec.innerHTML=`<div class="pub-section-title">📅 Match Schedule</div>`;
-
-  // Group filter for schedule
-  const schedFilterRow=document.createElement('div');schedFilterRow.className='pub-filter-row';
-  schedFilterRow.innerHTML=`<span style="font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-right:4px;">Group</span>`;
-  let activeSchedFilter='all';
-  // Build filter chips using full group names
-  const schedGroups = GROUPS.map(g=>g.name);
-  ['all',...schedGroups].forEach(g=>{
-    const btn=document.createElement('button');
-    btn.className='filter-chip'+(g==='all'?' active':'');
-    const groupLetter = g.replace('Group ','');
-    btn.textContent=g==='all'?'All':groupLetter;
-    btn.onclick=function(){
-      activeSchedFilter=g;
-      schedFilterRow.querySelectorAll('.filter-chip').forEach(b=>b.classList.remove('active'));
-      this.classList.add('active');
-      schedTbody.querySelectorAll('tr').forEach(row=>{
-        const grp=row.dataset.group;
-        row.style.display=(g==='all'||grp===g)?'':'none';
-      });
-    };
-    schedFilterRow.appendChild(btn);
-  });
-  schedSec.appendChild(schedFilterRow);
-
-  const schedCard=document.createElement('div');schedCard.style.cssText='background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:14px;overflow-x:auto;';
-  const schedTable=document.createElement('table');schedTable.className='pub-schedule-table';
-  schedTable.innerHTML=`<thead><tr><th>Group</th><th>Home</th><th style="text-align:center;">Score</th><th>Away</th><th>Kickoff (your time)</th></tr></thead>`;
-  const schedTbody=document.createElement('tbody');
-  ALL_MATCHES.forEach(m=>{
-    const r=results[m.id];
-    const tr=document.createElement('tr');tr.dataset.group=m.group||'';
-        const schedR = results[m.id] || bracketResults[m.id];
-    const scoreCell = schedR
-      ? `<span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--teal-mid);">${schedR.home}&thinsp;–&thinsp;${schedR.away}</span>`
-      : `<span style="color:var(--t4);font-size:12px;letter-spacing:1px;">vs</span>`;
-    const groupLabel = m.group
-      ? `<span class="group-badge" style="font-size:10px;padding:2px 8px;">${m.group.replace('Group ','Grp ')}</span>`
-      : `<span style="color:var(--t3);font-size:11px;">${m.round||'KO'}</span>`;
-    const hFlag = m.hf && m.hf.length <= 4 ? `<span style="font-size:11px;color:var(--t3);margin-right:4px;">${m.hf}</span>` : (m.hf ? `<span style="margin-right:4px;">${m.hf}</span>` : '');
-    const aFlag = m.af && m.af.length <= 4 ? `<span style="font-size:11px;color:var(--t3);margin-left:4px;">${m.af}</span>` : (m.af ? `<span style="margin-left:4px;">${m.af}</span>` : '');
-    tr.innerHTML=`<td>${groupLabel}</td><td>${hFlag}${esc(m.home)}</td><td style="text-align:center;">${scoreCell}</td><td>${esc(m.away)}${aFlag}</td><td class="pub-date-cell">${fmtMatchTime(m.id)}</td>`;
-    schedTbody.appendChild(tr);
-  });
-  schedTable.appendChild(schedTbody);
-  schedCard.appendChild(schedTable);
-  schedSec.appendChild(schedCard);
-  c.appendChild(schedSec);
-
-}
-
-// ── PIN AUTH ──
-let adminUnlocked = false;
-
-
-
-
-
-function closePinOverlay() {
-  document.getElementById('pin-overlay').classList.remove('show');
-  document.getElementById('pin-input').value = '';
-  document.getElementById('pin-error').textContent = '';
-}
-
-// ── JUMP MENU ──
-function toggleJumpMenu() {
-  document.getElementById('jump-menu').classList.toggle('open');
-}
-function closeJumpMenu() {
-  document.getElementById('jump-menu').classList.remove('open');
-}
-
-// ── BACK TO TOP ──
-window.addEventListener('scroll', () => {
-  const vis = window.scrollY > 300;
-  document.getElementById('back-to-top')?.classList.toggle('visible', vis);
-  document.getElementById('jump-btn')?.classList.toggle('visible', vis);
-});
-
-document.addEventListener('click', e => {
-  if(!e.target.closest('#jump-btn') && !e.target.closest('#jump-menu')) closeJumpMenu();
-});
-
-// bracket state defined in Supabase layer above
-
-function renderBracket() {
-  const c = document.getElementById('bracket-content');
-  if(!c) return;
-  c.innerHTML = '';
-
-  const hdr = document.createElement('div');
-  hdr.innerHTML = '<div class="section-label" style="margin-bottom:20px;">Knockout bracket <span class="s-badge sb-open">Teams confirmed as group stage completes</span></div>';
-  c.appendChild(hdr);
-
-  const rounds = [
-    {key:'Round of 32', label:'Round of 32'},
-    {key:'Round of 16', label:'Round of 16'},
-    {key:'Quarter Finals', label:'Quarter Finals'},
-    {key:'Semi Finals', label:'Semi Finals'},
-    {key:'Finals', label:'Final'},
-  ];
-
-  const bracketWrap = document.createElement('div');
-  bracketWrap.className = 'bracket-view';
-  const grid = document.createElement('div');
-  grid.className = 'bracket-grid';
-
-  rounds.forEach(({key, label}) => {
-    const roundMatches = ALL_MATCHES.filter(m => m.round === key);
-    if(!roundMatches.length) return;
-
-    const col = document.createElement('div');
-    col.className = 'bracket-round';
-    col.innerHTML = `<div class="bracket-round-title">${label}</div>`;
-    const matchesDiv = document.createElement('div');
-    matchesDiv.className = 'bracket-matches';
-
-    roundMatches.forEach(m => {
-      const r = results[m.id] || bracketResults[m.id];
-      const card = document.createElement('div');
-      card.className = 'bracket-match' + (r ? ' has-result' : '');
-      const homeIsWinner = r && Number(r.home) > Number(r.away);
-      const awayIsWinner = r && Number(r.away) > Number(r.home);
-      // bracketTeams (admin-set) takes priority over CSV placeholders
-      // CSV has real names only for group stage; KO rounds have codes like "2A", "1C", "3ABCDF"
-      const btHome = bracketTeams[m.id]?.home || '';
-      const btAway = bracketTeams[m.id]?.away || '';
-      const csvHomeReal = m.home && TEAMS.includes(m.home);
-      const csvAwayReal = m.away && TEAMS.includes(m.away);
-      const homeDisplay = btHome || (csvHomeReal ? m.home : '');
-      const awayDisplay = btAway || (csvAwayReal ? m.away : '');
-      const hf = TEAMS.includes(homeDisplay) ? (m.hf||'') : '';
-      const af = TEAMS.includes(awayDisplay) ? (m.af||'') : '';
-      card.innerHTML =
-        `<div class="bracket-team ${homeIsWinner?'winner':''}">
-          <span class="bt-flag">${hf}</span>
-          <span class="bt-name">${homeDisplay?esc(homeDisplay):'<span class="bracket-slot">TBD</span>'}</span>
-          ${r?`<span class="bt-score">${r.home}</span>`:''}
-        </div>
-        <div class="bracket-team ${awayIsWinner?'winner':''}">
-          <span class="bt-flag">${af}</span>
-          <span class="bt-name">${awayDisplay?esc(awayDisplay):'<span class="bracket-slot">TBD</span>'}</span>
-          ${r?`<span class="bt-score">${r.away}</span>`:''}
-        </div>
-        <div style="padding:4px 10px 6px;font-size:10px;color:var(--t4);font-family:'DM Mono',monospace;">${fmtDate(m.utc)}</div>`;
-      matchesDiv.appendChild(card);
-    });
-
-    col.appendChild(matchesDiv);
-    grid.appendChild(col);
-  });
-
-  bracketWrap.appendChild(grid);
-  c.appendChild(bracketWrap);
-}
-
-
-
-
-
-
-
-
-
-
-// ── PIN MANAGEMENT (Admin) ──
-
-
-
-
-
-
-function esc(s) {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function applyConfig(data) {
-  if(data.phases) {
-    PHASES.specials   = data.phases.specials   === true || data.phases.specials   === 'true';
-    PHASES.groupStage = data.phases.groupStage === true || data.phases.groupStage === 'true';
-  }
-  if(Array.isArray(data.participants) && data.participants.length > 0) {
-    participants = data.participants.map(p => p.name).filter(Boolean);
-    data.participants.forEach(p => {
-      if(p.fn)  participantFunctions[p.name] = p.fn;
-      if(p.pin) participantPins[p.name] = p.pin;
-    });
-  }
-  if(data.specialsActual && Object.keys(data.specialsActual).length) {
-    Object.assign(specialsActual, data.specialsActual);
-  }
-  if(data.adminPin) {
-    localStorage.setItem('admin_pin', String(data.adminPin));
-  }
-}
-
-function applyResults(data) {
-  if(data.results)        Object.assign(results,        data.results);
-  if(data.bracketResults) Object.assign(bracketResults, data.bracketResults);
-  if(data.bracketTeams)   Object.assign(bracketTeams,   data.bracketTeams);
-}
-
-
-
-
-
-function toggleInstr() {
-  const b = document.getElementById('instr-body');
-  const t = document.getElementById('instr-toggle');
-  if(!b) return;
-  const s = b.style.display !== 'none';
-  b.style.display = s ? 'none' : 'block';
-  if(t) t.textContent = s ? 'Show setup guide' : 'Hide setup guide';
-}
-
-// ════════════════════════════════════════════════════════════
-//  AUTH LAYER — self-service registration + PIN login
-//  Uses Supabase 'users' table
-// ════════════════════════════════════════════════════════════
-
-// Simple SHA-256 hash for PINs (client-side, never send raw PIN)
-async function hashPin(pin) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
-// Current logged-in user (session only — re-login each visit)
-let currentUser = null; // { id, email, name, fn }
-
-function showAuthOverlay() {
-  const ov = document.getElementById('auth-overlay');
-  if(ov) ov.style.display = 'flex';
-}
-
-function hideAuthOverlay() {
-  const ov = document.getElementById('auth-overlay');
-  if(ov) ov.style.display = 'none';
-}
-
-function switchAuthTab(tab) {
-  document.getElementById('auth-login-form').style.display    = tab==='login'    ? '' : 'none';
-  document.getElementById('auth-register-form').style.display = tab==='register' ? '' : 'none';
-  document.getElementById('auth-tab-login').classList.toggle('active',    tab==='login');
-  document.getElementById('auth-tab-register').classList.toggle('active', tab==='register');
-}
-
-// ── REGISTER ──
-async function authRegister() {
-  const email   = document.getElementById('reg-email')?.value.trim().toLowerCase();
-  const name    = document.getElementById('reg-name')?.value.trim();
-  const fn      = document.getElementById('reg-fn')?.value;
-  const country = document.getElementById('reg-country')?.value || null;
-  const pin     = document.getElementById('reg-pin')?.value;
-  const pinConf = document.getElementById('reg-pin-confirm')?.value;
-  const errEl   = document.getElementById('reg-error');
-  const sucEl   = document.getElementById('reg-success');
-  const btn     = document.getElementById('reg-btn');
-
-  errEl.classList.remove('show');
-  sucEl.classList.remove('show');
-
-  // Validate
-  if(!email || !name || !fn || !pin || !pinConf) {
-    errEl.textContent = 'Please fill in all fields.';
-    errEl.classList.add('show'); return;
-  }
-  if(!email.endsWith('@coevolve.com')) {
-    errEl.textContent = 'Only @coevolve.com email addresses can register.';
-    errEl.classList.add('show'); return;
-  }
-  if(pin.length < 4) {
-    errEl.textContent = 'PIN must be at least 4 digits.';
-    errEl.classList.add('show'); return;
-  }
-  if(pin !== pinConf) {
-    errEl.textContent = "PINs don't match.";
-    errEl.classList.add('show'); return;
-  }
-  if(!name || name.length < 2) {
-    errEl.textContent = 'Please enter your display name.';
-    errEl.classList.add('show'); return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = 'Creating account…';
-
-  try {
-    // Check if email already registered
-    const existing = await sbFetch('users?email=eq.' + encodeURIComponent(email) + '&select=id');
-    if(Array.isArray(existing) && existing.length > 0) {
-      errEl.textContent = 'An account with this email already exists. Contact Bibhushan if you need help.';
-      errEl.classList.add('show');
-      btn.disabled = false; btn.textContent = 'Create account';
-      return;
-    }
-
-    // Check if display name already taken
-    const nameTaken = await sbFetch('users?name=eq.' + encodeURIComponent(name) + '&select=id');
-    if(Array.isArray(nameTaken) && nameTaken.length > 0) {
-      errEl.textContent = 'That display name is already taken. Please choose a different one.';
-      errEl.classList.add('show');
-      btn.disabled = false; btn.textContent = 'Create account';
-      return;
-    }
-
-    const pinHash = await hashPin(pin);
-    const res = await sbFetch('users', {
-      method:  'POST',
-      headers: { 'Prefer': 'return=representation' },
-      body: { email, name, fn, country: country||null, pin_hash: pinHash },
-    });
-
-    // Success if we got an array back (return=representation) or ok:true
-    if(res === null) throw new Error('Registration failed — no response');
-    if(Array.isArray(res) && res.length === 0) throw new Error('Registration failed — empty response');
-
-    errEl.classList.remove('show');
-    errEl.textContent = '';
-    sucEl.textContent = '✓ Account created! You can now sign in.';
-    sucEl.classList.add('show');
-    btn.textContent = 'Create account';
-    btn.disabled = false;
-
-    // Add to local participant list for this session. Supabase users table is the source of truth on next load.
-    const newUser = Array.isArray(res) ? res[0] : { name: document.getElementById('reg-name').value.trim(), fn: document.getElementById('reg-fn').value };
-    syncNewUserToParticipants(newUser);
-
-    // Auto-switch to login
-    setTimeout(() => {
-      document.getElementById('login-email').value = email;
-      switchAuthTab('login');
-      document.getElementById('login-pin').focus();
-    }, 1500);
-
-  } catch(e) {
-    console.error('Register error:', e);
-    errEl.textContent = 'Registration failed. Please try again.';
-    errEl.classList.add('show');
-    btn.disabled = false; btn.textContent = 'Create account';
-  }
-}
-
-// ── LOGIN ──
-async function authLogin() {
-  const email = document.getElementById('login-email')?.value.trim().toLowerCase();
-  const pin   = document.getElementById('login-pin')?.value;
-  const errEl = document.getElementById('login-error');
-  const btn   = document.getElementById('login-btn');
-
-  errEl.classList.remove('show');
-
-  if(!email || !pin) {
-    errEl.textContent = 'Please enter your email and PIN.';
-    errEl.classList.add('show'); return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = 'Signing in…';
-
-  try {
-    const rows = await sbFetch('users?email=eq.' + encodeURIComponent(email) + '&select=*');
-    if(!Array.isArray(rows) || rows.length === 0) {
-      errEl.textContent = 'No account found for this email. Please register first.';
-      errEl.classList.add('show');
-      btn.disabled = false; btn.textContent = 'Sign in';
-      return;
-    }
-
-    const user = rows[0];
-    const pinHash = await hashPin(pin);
-
-    if(pinHash !== user.pin_hash) {
-      errEl.textContent = 'Incorrect PIN. Please try again.';
-      errEl.classList.add('show');
-      btn.disabled = false; btn.textContent = 'Sign in';
-      return;
-    }
-
-    // Logged in!
-    onLoginSuccess(user);
-
-  } catch(e) {
-    console.error('Login error:', e);
-    errEl.textContent = 'Login failed. Please try again.';
-    errEl.classList.add('show');
-    btn.disabled = false; btn.textContent = 'Sign in';
-  }
-}
-
-// ── LOGIN SUCCESS ──
-function onLoginSuccess(user) {
-  currentUser  = user;
-  verifiedUser = user.name;
-
-  hideAuthOverlay();
-  updateUserPill(user);
-
-  // Show logged-in display in participant bar
-  const loginAs  = document.getElementById('logged-in-as');
-  const loginName = document.getElementById('logged-in-name');
-  const loginFn  = document.getElementById('logged-in-fn');
-  if(loginAs)   loginAs.style.display  = 'flex';
-  if(loginName) loginName.textContent  = user.name;
-  if(loginFn)   loginFn.innerHTML      = fnBadgeByKey(user.fn);
-
-  // Set the hidden select so all existing logic works
-  const sel = document.getElementById('participant-select');
-  if(sel) {
-    // Ensure the user is in the options
-    if(!Array.from(sel.options).find(o => o.value === user.name)) {
-      const o = document.createElement('option');
-      o.value = user.name; o.textContent = user.name;
-      sel.appendChild(o);
-    }
-    sel.value = user.name;
-    onParticipantChange();
-  }
-
-  // Show sticky bar
-  const bar = document.getElementById('sticky-submit-bar');
-  if(bar) bar.style.display = '';
-
-  // Set default view to Next Match and re-render AFTER everything is set
-  matchViewMode = 'next';
-  localStorage.setItem('matchView', 'next');
-  document.querySelectorAll('.view-mode-btn').forEach(btn => {
-    const map = {'Next match':'next','Next 7 days':'upcoming7','Matchday':'round','Group':'group','By country':'country','All matches':'all'};
-    btn.classList.toggle('active', map[btn.textContent.trim()] === 'next');
-  });
-  // Re-render now that view mode and user are both set
-  updatePhaseBadges();
-  showFirstTimeWelcome(user);
-  renderMatches();
-  if(predictions[user.name]) loadPredictions(user.name);
-  updateSubmitState();
-
-  showToast('Welcome back, ' + user.name + '! 👋');
-}
-
-function updateUserPill(user) {
-  const pill = document.getElementById('topbar-user-pill');
-  if(!pill) return;
-  const initials = user.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-  pill.innerHTML =
-    '<div class="user-pill" onclick="confirmLogout()" title="Click to sign out">' +
-    '<div class="user-avatar">' + esc(initials) + '</div>' +
-    '<span class="user-pill-name">' + esc(user.name) + '</span>' +
-    '<span style="font-size:10px;color:var(--t3);">▾</span>' +
-    '</div>';
-}
-
-function confirmLogout() {
-  if(confirm('Sign out of WC2026 Predictor?')) {
-    currentUser  = null;
-    verifiedUser = null;
-    showAuthOverlay();
-    document.getElementById('login-pin').value  = '';
-    document.getElementById('login-email').value = '';
-    document.getElementById('login-error').classList.remove('show');
-    const pill = document.getElementById('topbar-user-pill');
-    if(pill) pill.innerHTML = '';
-    showToast('Signed out');
-  }
-}
-
-// When a new user registers, add them to participants for the leaderboard
-function syncNewUserToParticipants(user) {
-  // Add to local participants array if not already there.
-  // The users table is already saved in Supabase; this only updates the current browser session.
-  if(!user || !user.name) return;
-  if(!participants.includes(user.name)) {
-    participants.push(user.name);
-  }
-  participantFunctions[user.name] = user.fn || 'di';
-    if(user.country) participantCountries[user.name] = user.country;
-
-  const sel = document.getElementById('participant-select');
-  if(sel && !Array.from(sel.options).some(o => o.value === user.name)) {
-    const o = document.createElement('option');
-    o.value = user.name;
-    o.textContent = user.name;
-    sel.appendChild(o);
-  }
-}
-
-// ── SQL SETUP DISPLAY ──
-function getAuthSetupSQL() {
-  return `create table if not exists users (
-  id         bigserial primary key,
-  email      text unique not null,
-  name       text not null,
-  pin_hash   text not null,
-  fn         text default 'di',
-  created_at timestamptz default now()
-);
-alter table users enable row level security;
-create policy "anon all users" on users for all using (true) with check (true);
-create index if not exists users_email_idx on users(email);
-create index if not exists users_name_idx  on users(name);`;
-}
-
-
-// ════════════════════════════════════════════════════════════
-//  MATCH PREVIEW PANELS — H2H, fun facts, DYK cards
-// ════════════════════════════════════════════════════════════
-
-function buildPreviewPanel(matchId) {
-  const m = ALL_MATCHES.find(x => x.id === matchId);
-  if(!m) return null;
-
-  const panel = document.createElement('div');
-  panel.className = 'match-preview-panel';
-
-  // Lazy body — built on first click via Supabase fetch
-  let bodyBuilt = false;
-  const body = document.createElement('div');
-  body.className = 'preview-body';
-  body.style.display = 'none';
-
-  async function buildBody() {
-    if(bodyBuilt) return;
-    bodyBuilt = true;
-    body.innerHTML = '<div style="padding:12px;color:var(--t3);font-size:12px;">Loading preview…</div>';
-
-    try {
-      const rows = await sbFetch('match_previews?match_id=eq.' + encodeURIComponent(matchId) + '&select=*');
-      const data  = Array.isArray(rows) && rows.length ? rows[0] : null;
-      body.innerHTML = '';
-
-      if(!data) {
-        body.innerHTML = '<div style="padding:10px;color:var(--t3);font-size:12px;">No preview data available for this match.</div>';
-        return;
-      }
-
-      // H2H section
-      const h2hSection = document.createElement('div');
-      h2hSection.style.marginBottom = '12px';
-      h2hSection.innerHTML = '<div class="preview-section-title">Head to Head</div>';
-      const h2h = typeof data.h2h === 'string' ? JSON.parse(data.h2h) : (data.h2h || []);
-      if(data.first_meeting || !h2h.length) {
-        h2hSection.innerHTML += '<div class="first-meeting-badge">🌟 First ever meeting between these nations</div>';
-      } else {
-        h2h.forEach(h => {
-          const row = document.createElement('div');
-          row.className = 'h2h-row';
-          row.innerHTML =
-            '<span class="h2h-year">' + h.year + '</span>' +
-            '<span class="h2h-result">' + esc(h.result) + '</span>' +
-            '<span class="h2h-note">' + esc(h.note) + '</span>';
-          h2hSection.appendChild(row);
-        });
-      }
-      body.appendChild(h2hSection);
-
-      if(data.fact) {
-        const f = document.createElement('div');
-        f.className = 'preview-fact-box';
-        f.innerHTML = '💡 ' + esc(data.fact);
-        body.appendChild(f);
-      }
-      if(data.stat) {
-        const s = document.createElement('div');
-        s.className = 'preview-stat-pill';
-        s.innerHTML = '📊 ' + esc(data.stat);
-        body.appendChild(s);
-      }
-    } catch(e) {
-      body.innerHTML = '<div style="padding:10px;color:var(--t3);font-size:12px;">Preview unavailable.</div>';
-    }
-  }
-
-  panel.appendChild(body);
-
-  const toggle = document.createElement('button');
-  toggle.className = 'preview-toggle';
-  toggle.innerHTML = '<span>Match preview · H2H &amp; facts</span><span class="preview-toggle-icon">▼</span>';
-  toggle.onclick = async () => {
-    const open = body.style.display !== 'none';
-    if(!open) await buildBody();
-    body.style.display = open ? 'none' : 'block';
-    toggle.classList.toggle('open', !open);
-    toggle.querySelector('span').textContent = open ? 'Match preview · H2H & facts' : 'Hide preview';
-  };
-  panel.appendChild(toggle);
-  return panel;
-}
-
-
-function buildDYKCard(index) {
-  // Returns a placeholder card immediately, populates async
-  const card = document.createElement('div');
-  card.className = 'dyk-card';
-  card.innerHTML = '<div class="dyk-label">⚽ Did You Know?</div><div class="dyk-text" style="color:rgba(255,255,255,.4);font-size:12px;">Loading…</div>';
-
-  (async () => {
-    try {
-      // Fetch a random DYK by using offset = index mod count
-      const countRes = await sbFetch('did_you_know?select=count', {
-        headers:{'Prefer':'count=exact'}, method:'GET'
-      });
-      // Just fetch all (15 rows) — tiny payload
-      const rows = await sbFetch('did_you_know?select=fact,category&order=id');
-      if(Array.isArray(rows) && rows.length) {
-        const d = rows[index % rows.length];
-        card.innerHTML =
-          '<div class="dyk-label">⚽ Did You Know?</div>' +
-          '<div class="dyk-text">' + esc(d.fact) + '</div>' +
-          '<div class="dyk-category">' + esc(d.category) + '</div>';
-      }
-    } catch(e) {
-      card.style.display = 'none';
-    }
-  })();
-
-  return card;
-}
-
-
-function showToast(msg, isError=false) {
-  const t = document.getElementById('toast');
-  if(!t) return;
-  // Clear any pending hide
-  if(t._hideTimeout) clearTimeout(t._hideTimeout);
-  t.textContent = msg;
-  t.className = 'toast' + (isError ? ' error' : '') + ' show';
-  t._hideTimeout = setTimeout(() => {
-    t.classList.remove('show');
-    t._hideTimeout = null;
-  }, 3000);
-}
-
-// ── INITIALISE ──
-// 1. Populate static team dropdowns (no DB needed)
-populateTeamSelects();
-
-
-function renderPhaseToggles() {
-  // Public page has no admin toggles, but finishInit calls this for compatibility.
-}
-
-function updatePhaseBadges() {
-  const specialsOpen = PHASES.specials === true || PHASES.specials === 'true';
-  const groupOpen    = PHASES.groupStage === true || PHASES.groupStage === 'true';
-
-  const specialsBadge = document.getElementById('specials-phase-badge');
-  if(specialsBadge) {
-    specialsBadge.textContent = specialsOpen ? 'Open · closes 18 Jun' : 'Closed';
-    specialsBadge.className = 's-badge ' + (specialsOpen ? 'sb-open' : 'sb-done');
-  }
-
-  // Hide the whole specials section, not just the inner card.
-  const specialsSection = document.getElementById('specials-section');
-  if(specialsSection) specialsSection.style.display = specialsOpen ? '' : 'none';
-
-  // Backwards-compatible fallback if an older file only has the card wrapper.
-  const specialsWrap = document.getElementById('specials-card-wrap');
-  if(specialsWrap) specialsWrap.style.display = specialsOpen ? '' : 'none';
-
-  ['s-winner','s-runnerup','s-topscorer','s-surprise','s-sf1','s-sf2','s-sf3','s-sf4'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el) el.disabled = !specialsOpen;
-  });
-
-  const matchBadge = document.getElementById('match-phase-badge');
-  if(matchBadge) {
-    matchBadge.textContent = groupOpen ? 'Group stage live' : 'Closed';
-    matchBadge.className = 's-badge ' + (groupOpen ? 'sb-live' : 'sb-done');
-  }
-
-  const statusPill = document.getElementById('sb-status-pill');
-  const statusDot = document.getElementById('sb-status-dot');
-  const statusText = document.getElementById('sb-status-text');
-  const anyOpen = specialsOpen || groupOpen;
-  if(statusPill) statusPill.className = 'sb-status ' + (anyOpen ? 'live' : 'closed');
-  if(statusDot) statusDot.className = 'live-dot ' + (anyOpen ? 'green' : 'grey');
-  if(statusText) statusText.textContent = groupOpen ? 'Group live' : specialsOpen ? 'Specials open' : 'Closed';
-
-  updateSubmitState();
-}
-
-async function refreshPhasesFromSupabase() {
-  try {
-    const rows = await sbFetch('config?key=eq.phases&select=value');
-    if(Array.isArray(rows) && rows.length && rows[0].value) {
-      const p = JSON.parse(rows[0].value);
-      const nextSpecials = p.specials === true || p.specials === 'true';
-      const nextGroup    = p.groupStage === true || p.groupStage === 'true';
-      const changed = PHASES.specials !== nextSpecials || PHASES.groupStage !== nextGroup;
-      PHASES.specials = nextSpecials;
-      PHASES.groupStage = nextGroup;
-      if(changed) {
-        updatePhaseBadges();
-        renderMatches();
-        updateSubmitState();
-      }
-    }
-  } catch(e) {
-    console.warn('Phase refresh failed:', e);
-  }
-}
-
-// 2. finishInit is called by initApp() after DB loads
-function finishInit() {
-  // Set dynamic tournament dates from match data
-  const tz = getUserTZ();
-  const allUtcTimes = ALL_MATCHES.map(m => new Date(m.utc)).filter(d => !isNaN(d));
-  if(allUtcTimes.length) {
-    const first = new Date(Math.min(...allUtcTimes));
-    const last  = new Date(Math.max(...allUtcTimes));
-    const fmt = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:tz});
-    const dateStr = fmt(first) + ' — ' + fmt(last);
-    const sbDates = document.getElementById('sb-tourney-dates');
-    if(sbDates) sbDates.textContent = dateStr + ' · USA / MEX / CAN';
-    const topMeta = document.getElementById('topbar-meta');
-    if(topMeta) topMeta.textContent = ALL_MATCHES.length + ' matches · ' + dateStr;
-  }
-
-  // Rebuild participant dropdown with DB-loaded participants
-  const sel = document.getElementById('participant-select');
-  if(sel) {
-    const cur = sel.value;
-    sel.innerHTML = '<option value="">— select your name —</option>';
-    participants.forEach(name => {
-      const o = document.createElement('option');
-      o.value = name; o.textContent = name;
-      sel.appendChild(o);
-    });
-    if(cur && participants.includes(cur)) sel.value = cur;
-  }
-  renderChips();
-  renderMatches();
-  updateSubmitState();
-  renderPhaseToggles();
-  updatePhaseBadges();
-  if(matchViewMode === 'country') document.getElementById('view-mode-bar')?.classList.add('show-advanced');
-  document.querySelectorAll('.view-mode-btn').forEach(btn => {
-    const map = {'Next match':'next','Next 7 days':'upcoming7','Matchday':'round','Group':'group','By country':'country','All matches':'all'};
-    btn.classList.toggle('active', map[btn.textContent.trim()] === matchViewMode);
-  });
-}
-
-// 3. Track unsaved prediction changes and kick off — loads all state from Supabase, then calls finishInit()
-wirePredictionChangeTracking();
-initApp();
-
-// Keep phase toggles in sync when admin changes them in another tab/device.
-setInterval(refreshPhasesFromSupabase, 15000);
-window.addEventListener('focus', refreshPhasesFromSupabase);
-document.addEventListener('visibilitychange', () => {
-  if(!document.hidden) refreshPhasesFromSupabase();
-});
-
-</script>
-</body>
-</html>
