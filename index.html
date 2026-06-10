@@ -3287,14 +3287,16 @@ async function authRegister() {
     if(res === null) throw new Error('Registration failed — no response');
     if(Array.isArray(res) && res.length === 0) throw new Error('Registration failed — empty response');
 
+    errEl.classList.remove('show');
+    errEl.textContent = '';
     sucEl.textContent = '✓ Account created! You can now sign in.';
     sucEl.classList.add('show');
     btn.textContent = 'Create account';
     btn.disabled = false;
 
-    // Add to participants list for leaderboard
+    // Add to local participant list for this session. Supabase users table is the source of truth on next load.
     const newUser = Array.isArray(res) ? res[0] : { name: document.getElementById('reg-name').value.trim(), fn: document.getElementById('reg-fn').value };
-    await syncNewUserToParticipants(newUser);
+    syncNewUserToParticipants(newUser);
 
     // Auto-switch to login
     setTimeout(() => {
@@ -3434,14 +3436,22 @@ function confirmLogout() {
 }
 
 // When a new user registers, add them to participants for the leaderboard
-async function syncNewUserToParticipants(user) {
-  // Add to local participants array if not already there
+function syncNewUserToParticipants(user) {
+  // Add to local participants array if not already there.
+  // The users table is already saved in Supabase; this only updates the current browser session.
+  if(!user || !user.name) return;
   if(!participants.includes(user.name)) {
     participants.push(user.name);
-    participantFunctions[user.name] = user.fn || 'di';
   }
-  // Sync participants to config in Supabase
-  await syncAllConfig();
+  participantFunctions[user.name] = user.fn || 'di';
+
+  const sel = document.getElementById('participant-select');
+  if(sel && !Array.from(sel.options).some(o => o.value === user.name)) {
+    const o = document.createElement('option');
+    o.value = user.name;
+    o.textContent = user.name;
+    sel.appendChild(o);
+  }
 }
 
 // ── SQL SETUP DISPLAY ──
