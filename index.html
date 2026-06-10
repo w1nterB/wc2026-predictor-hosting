@@ -1169,7 +1169,7 @@ select.portal-input option{background:#fff;}
 <!-- PIN auth replaced by login system -->
       <div id="predictions-content">
 
-      <div class="page-section">
+      <div class="page-section" id="specials-section">
         <div class="section-label">Pre-tournament specials <span class="s-badge sb-open" id="specials-phase-badge">Open · closes 18 Jun</span></div>
         <div id="specials-card-wrap"><div class="card">
           <div class="card-title">Tournament predictions</div>
@@ -3612,35 +3612,64 @@ function renderPhaseToggles() {
 }
 
 function updatePhaseBadges() {
+  const specialsOpen = PHASES.specials === true || PHASES.specials === 'true';
+  const groupOpen    = PHASES.groupStage === true || PHASES.groupStage === 'true';
+
   const specialsBadge = document.getElementById('specials-phase-badge');
   if(specialsBadge) {
-    specialsBadge.textContent = PHASES.specials ? 'Open · closes 18 Jun' : 'Closed';
-    specialsBadge.className = 's-badge ' + (PHASES.specials ? 'sb-open' : 'sb-done');
+    specialsBadge.textContent = specialsOpen ? 'Open · closes 18 Jun' : 'Closed';
+    specialsBadge.className = 's-badge ' + (specialsOpen ? 'sb-open' : 'sb-done');
   }
 
+  // Hide the whole specials section, not just the inner card.
+  const specialsSection = document.getElementById('specials-section');
+  if(specialsSection) specialsSection.style.display = specialsOpen ? '' : 'none';
+
+  // Backwards-compatible fallback if an older file only has the card wrapper.
   const specialsWrap = document.getElementById('specials-card-wrap');
-  if(specialsWrap) specialsWrap.style.display = PHASES.specials ? '' : 'none';
+  if(specialsWrap) specialsWrap.style.display = specialsOpen ? '' : 'none';
 
   ['s-winner','s-runnerup','s-topscorer','s-surprise','s-sf1','s-sf2','s-sf3','s-sf4'].forEach(id => {
     const el = document.getElementById(id);
-    if(el) el.disabled = !PHASES.specials;
+    if(el) el.disabled = !specialsOpen;
   });
 
   const matchBadge = document.getElementById('match-phase-badge');
   if(matchBadge) {
-    matchBadge.textContent = PHASES.groupStage ? 'Group stage live' : 'Closed';
-    matchBadge.className = 's-badge ' + (PHASES.groupStage ? 'sb-live' : 'sb-done');
+    matchBadge.textContent = groupOpen ? 'Group stage live' : 'Closed';
+    matchBadge.className = 's-badge ' + (groupOpen ? 'sb-live' : 'sb-done');
   }
 
   const statusPill = document.getElementById('sb-status-pill');
   const statusDot = document.getElementById('sb-status-dot');
   const statusText = document.getElementById('sb-status-text');
-  const anyOpen = PHASES.specials || PHASES.groupStage;
+  const anyOpen = specialsOpen || groupOpen;
   if(statusPill) statusPill.className = 'sb-status ' + (anyOpen ? 'live' : 'closed');
   if(statusDot) statusDot.className = 'live-dot ' + (anyOpen ? 'green' : 'grey');
-  if(statusText) statusText.textContent = PHASES.groupStage ? 'Group live' : PHASES.specials ? 'Specials open' : 'Closed';
+  if(statusText) statusText.textContent = groupOpen ? 'Group live' : specialsOpen ? 'Specials open' : 'Closed';
 
   updateSubmitState();
+}
+
+async function refreshPhasesFromSupabase() {
+  try {
+    const rows = await sbFetch('config?key=eq.phases&select=value');
+    if(Array.isArray(rows) && rows.length && rows[0].value) {
+      const p = JSON.parse(rows[0].value);
+      const nextSpecials = p.specials === true || p.specials === 'true';
+      const nextGroup    = p.groupStage === true || p.groupStage === 'true';
+      const changed = PHASES.specials !== nextSpecials || PHASES.groupStage !== nextGroup;
+      PHASES.specials = nextSpecials;
+      PHASES.groupStage = nextGroup;
+      if(changed) {
+        updatePhaseBadges();
+        renderMatches();
+        updateSubmitState();
+      }
+    }
+  } catch(e) {
+    console.warn('Phase refresh failed:', e);
+  }
 }
 
 // 2. finishInit is called by initApp() after DB loads
@@ -3686,6 +3715,13 @@ function finishInit() {
 // 3. Track unsaved prediction changes and kick off — loads all state from Supabase, then calls finishInit()
 wirePredictionChangeTracking();
 initApp();
+
+// Keep phase toggles in sync when admin changes them in another tab/device.
+setInterval(refreshPhasesFromSupabase, 15000);
+window.addEventListener('focus', refreshPhasesFromSupabase);
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) refreshPhasesFromSupabase();
+});
 
 </script>
 </body>
