@@ -2867,6 +2867,55 @@ function renderDashboard(){
     (hasSpecials ? ' · specials scored' : '');
   lbPane.appendChild(summary);
 
+  // Dashboard highlights — restored without changing the existing CSS/look
+  const highlights = document.createElement('div');
+  highlights.className = 'fun-stat-grid';
+  highlights.style.marginBottom = '16px';
+
+  const tableTopper = ranked[0];
+  const leadingFn = Object.entries(FUNCTIONS).map(([key,f]) => {
+    const names = participants.filter(n => participantFunctions[n] === key);
+    const total = names.reduce((sum,n) => sum + (scores[n]?.total || 0), 0);
+    const avg = names.length ? total / names.length : 0;
+    return { key, f, names, total, avg };
+  }).filter(x => x.names.length).sort((a,b) => b.avg - a.avg)[0];
+
+  const leadingCty = Object.entries(COUNTRIES).map(([key,ct]) => {
+    const names = participants.filter(n => participantCountries[n] === key);
+    const total = names.reduce((sum,n) => sum + (scores[n]?.total || 0), 0);
+    const avg = names.length ? total / names.length : 0;
+    return { key, ct, names, total, avg };
+  }).filter(x => x.names.length).sort((a,b) => b.avg - a.avg)[0];
+
+  const oracleNow = ranked.slice().sort((a,b)=>(b[1].exact||0)-(a[1].exact||0))[0];
+
+  highlights.innerHTML = `
+    <div class="fun-stat-card">
+      <div class="fun-stat-emoji">🏅</div>
+      <div class="fun-stat-label">Table Topper</div>
+      <div class="fun-stat-name">${tableTopper ? esc(tableTopper[0]) : 'TBD'}</div>
+      <div class="fun-stat-sub">${tableTopper ? tableTopper[1].total + ' pts' : ''}</div>
+    </div>
+    <div class="fun-stat-card">
+      <div class="fun-stat-emoji">🏢</div>
+      <div class="fun-stat-label">Leading Function</div>
+      <div class="fun-stat-name">${leadingFn ? leadingFn.f.label : 'TBD'}</div>
+      <div class="fun-stat-sub">${leadingFn ? leadingFn.avg.toFixed(1) + ' avg pts' : ''}</div>
+    </div>
+    <div class="fun-stat-card">
+      <div class="fun-stat-emoji">🌏</div>
+      <div class="fun-stat-label">Leading Country</div>
+      <div class="fun-stat-name">${leadingCty ? leadingCty.ct.label : 'TBD'}</div>
+      <div class="fun-stat-sub">${leadingCty ? leadingCty.avg.toFixed(1) + ' avg pts' : ''}</div>
+    </div>
+    <div class="fun-stat-card">
+      <div class="fun-stat-emoji">🔮</div>
+      <div class="fun-stat-label">The Oracle</div>
+      <div class="fun-stat-name">${oracleNow && oracleNow[1].exact > 0 ? esc(oracleNow[0]) : 'TBD'}</div>
+      <div class="fun-stat-sub">${oracleNow && oracleNow[1].exact > 0 ? oracleNow[1].exact + ' exact scores' : 'Most exact scores'}</div>
+    </div>`;
+  lbPane.appendChild(highlights);
+
   // Dynamic grid columns — full words, generous spacing
   const dynStyle = (() => {
     let s = document.getElementById('lb-dyn-style');
@@ -2934,7 +2983,6 @@ function renderDashboard(){
   });
   lbPane.appendChild(tbl);
 
-  lbPane.appendChild(aCard);
 
   // Fun stats
   const funCard = document.createElement('div'); funCard.className = 'dash-card'; funCard.style.marginTop='16px';
