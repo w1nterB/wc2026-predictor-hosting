@@ -1324,7 +1324,7 @@ create policy "anon all" on predictions  for all using (true) with check (true);
       <button class="btn-primary" onclick="checkPin()">Enter</button>
       <button class="btn-secondary" onclick="closePinOverlay()">Cancel</button>
     </div>
-    <div style="margin-top:14px;font-size:11px;color:var(--t4);">Default PIN is 2026 — change it in Admin → Admin PIN</div>
+    
   </div>
 </div>
 
@@ -1879,6 +1879,19 @@ function submitPredictions() {/* admin: not used */}
 
 // match select wired in initAdmin()
 
+function refreshMatchDropdown(){
+  const ams = document.getElementById('admin-match-select');
+  if(!ams) return;
+  const cur = ams.value;
+  Array.from(ams.options).forEach(o => {
+    if(!o.value) return;
+    const r = results[o.value];
+    const m = ALL_MATCHES.find(x => x.id === o.value);
+    if(m) o.textContent = '#'+m.num+' · '+m.home+' vs '+m.away+' ('+(m.group||m.round)+')'+(r ? ' ✓' : '');
+  });
+  ams.value = cur;
+}
+
 async function saveResult(){
   const id=document.getElementById('admin-match-select').value;
   const h=document.getElementById('res-score-home').value, a=document.getElementById('res-score-away').value;
@@ -1892,6 +1905,7 @@ async function saveResult(){
   setTimeout(()=>{ if(st) st.textContent=''; },2000);
   document.getElementById('result-entry-area').style.display='none';
   document.getElementById('admin-match-select').value='';
+  refreshMatchDropdown();
   renderMatchResultsList();
   renderMatches();
   if(document.getElementById('tab-dashboard').style.display!=='none') renderDashboard();
@@ -1908,6 +1922,7 @@ async function deleteResult(){
   await sbFetch('results?match_id=eq.' + encodeURIComponent(id), { method:'DELETE' });
   document.getElementById('result-entry-area').style.display='none';
   document.getElementById('admin-match-select').value='';
+  refreshMatchDropdown();
   renderMatchResultsList();
   renderMatches();
   if(document.getElementById('tab-dashboard').style.display!=='none') renderDashboard();
@@ -2669,6 +2684,19 @@ function updatePhaseBadges() {
   if(dot){ dot.className = 'live-dot ' + (anyOpen ? 'green' : 'grey'); }
   if(txt) txt.textContent = label;
 }
+function refreshMatchDropdown(){
+  const ams = document.getElementById('admin-match-select');
+  if(!ams) return;
+  const cur = ams.value;
+  Array.from(ams.options).forEach(o => {
+    if(!o.value) return;
+    const r = results[o.value];
+    const m = ALL_MATCHES.find(x => x.id === o.value);
+    if(m) o.textContent = '#'+m.num+' · '+m.home+' vs '+m.away+' ('+(m.group||m.round)+')'+(r ? ' ✓' : '');
+  });
+  ams.value = cur;
+}
+
 async function saveResult(){
   const id=document.getElementById('admin-match-select').value;
   const h=document.getElementById('res-score-home').value, a=document.getElementById('res-score-away').value;
@@ -2682,6 +2710,7 @@ async function saveResult(){
   setTimeout(()=>{ if(st) st.textContent=''; },2000);
   document.getElementById('result-entry-area').style.display='none';
   document.getElementById('admin-match-select').value='';
+  refreshMatchDropdown();
   renderMatchResultsList();
   renderMatches();
   if(document.getElementById('tab-dashboard').style.display!=='none') renderDashboard();
@@ -2697,6 +2726,7 @@ async function deleteResult(){
   await sbFetch('results?match_id=eq.' + encodeURIComponent(id), { method:'DELETE' });
   document.getElementById('result-entry-area').style.display='none';
   document.getElementById('admin-match-select').value='';
+  refreshMatchDropdown();
   renderMatchResultsList();
   renderMatches();
   if(document.getElementById('tab-dashboard').style.display!=='none') renderDashboard();
