@@ -1073,6 +1073,13 @@ select.portal-input option{background:#fff;}
   text-transform:uppercase;letter-spacing:1px;
 }
 
+/* ── COUNTRY BADGES ── */
+.fn-au { background: rgba(0,132,61,.15);   color: #00843D; }
+.fn-my { background: rgba(204,0,1,.12);    color: #CC0001; }
+.fn-uk { background: rgba(1,33,105,.12);   color: #012169; }
+.fn-us { background: rgba(178,34,52,.12);  color: #B22234; }
+.fn-ph { background: rgba(0,56,168,.12);   color: #0038A8; }
+
 </style>
   <!-- Microsoft Teams JS SDK -->
   <script src="https://res.cdn.office.net/teams-js/2.22.0/js/MicrosoftTeams.min.js" crossorigin="anonymous"></script>
@@ -1169,7 +1176,7 @@ select.portal-input option{background:#fff;}
 <!-- PIN auth replaced by login system -->
       <div id="predictions-content">
 
-      <div class="page-section" id="specials-section">
+      <div class="page-section" id="specials-section" style="display:none;">
         <div class="section-label">Pre-tournament specials <span class="s-badge sb-open" id="specials-phase-badge">Open · closes 18 Jun</span></div>
         <div id="specials-card-wrap"><div class="card">
           <div class="card-title">Tournament predictions</div>
@@ -1314,8 +1321,17 @@ select.portal-input option{background:#fff;}
             <option value="">Select your function…</option>
             <option value="di">Digital Innovation</option>
             <option value="sm">Sales &amp; Marketing</option>
-            <option value="ops">Operations</option>
-            <option value="mgmt">Management</option>
+            <option value="ops">Operations and CX</option>
+            <option value="mgmt">Finance and Management</option>
+          </select>
+          <div class="auth-field-label" style="margin-top:12px;">Your country</div>
+          <select class="auth-fn-select" id="reg-country">
+            <option value="">Select your country…</option>
+            <option value="au">AU Team</option>
+            <option value="my">MY Team</option>
+            <option value="uk">UK Team</option>
+            <option value="us">US Team</option>
+            <option value="ph">PH Team</option>
           </select>
         </div>
         <div class="auth-field-group">
@@ -1420,7 +1436,7 @@ async function loadAllFromSupabase() {
     // Parallel fetch everything
     const [cfgRows, userRows, resultRows, bracketRows, predRows, matchRows] = await Promise.all([
       sbFetch('config?select=key,value'),
-      sbFetch('users?select=name,fn&order=name'),
+      sbFetch('users?select=name,fn,country&order=name'),
       sbFetch('results?select=match_id,home_score,away_score'),
       sbFetch('bracket?select=match_id,home_name,away_name,home_score,away_score'),
       sbFetch('predictions?select=name,type,match_id,home_score,away_score,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
@@ -1448,6 +1464,7 @@ async function loadAllFromSupabase() {
       participants = participantRows.map(p => p.name);
       participantRows.forEach(p => {
         if(p.fn) participantFunctions[p.name] = p.fn;
+        if(p.country) participantCountries[p.name] = p.country;
         // Only set PIN if it's a real non-null non-'None' string
         if(p.pin && p.pin !== 'None' && p.pin !== 'null') {
           participantPins[p.name] = p.pin;
@@ -1668,10 +1685,18 @@ function setMatchView(mode, btn) {
 }
 
 const FUNCTIONS = {
-  di:   { label: 'Digital Innovation', cls: 'fn-di',   color: '#63DACD' },
-  sm:   { label: 'Sales & Marketing',  cls: 'fn-sm',   color: '#7ec8f0' },
-  ops:  { label: 'Operations',         cls: 'fn-ops',  color: '#96C668' },
-  mgmt: { label: 'Management',         cls: 'fn-mgmt', color: '#f0b429' },
+  di:   { label: 'Digital Innovation',    cls: 'fn-di',   color: '#63DACD' },
+  sm:   { label: 'Sales & Marketing',     cls: 'fn-sm',   color: '#7ec8f0' },
+  ops:  { label: 'Operations and CX',     cls: 'fn-ops',  color: '#96C668' },
+  mgmt: { label: 'Finance and Management',cls: 'fn-mgmt', color: '#f0b429' },
+};
+
+const COUNTRIES = {
+  au: { label: 'AU Team', cls: 'fn-au', color: '#00843D' },
+  my: { label: 'MY Team', cls: 'fn-my', color: '#CC0001' },
+  uk: { label: 'UK Team', cls: 'fn-uk', color: '#012169' },
+  us: { label: 'US Team', cls: 'fn-us', color: '#B22234' },
+  ph: { label: 'PH Team', cls: 'fn-ph', color: '#0038A8' },
 };
 
 let participants=['Bibhushan Gautam','Dexter Frostbourne','Bib Dex','Dex Manager'];
@@ -1683,6 +1708,7 @@ let participantFunctions = {
   'Bib Dex':'sm',
   'Dex Manager':'mgmt'
 };
+let participantCountries = {}; // keyed by name → country code
 
 // ── STATE — Supabase is source of truth, loaded on init ──
 let participantPins      = {};
@@ -2837,6 +2863,33 @@ function renderDashboard(){
   });
   c.appendChild(fnCard);
 
+  // ── Predictions by Country ──
+  const countryCard = document.createElement('div');
+  countryCard.className = 'dash-card';
+  countryCard.innerHTML = `<h3>Predictions by Country</h3><p style="font-size:12px;color:var(--t3);margin-bottom:18px;">Average points per country team across completed matches</p>`;
+  const ctyScores = {};
+  Object.entries(COUNTRIES).forEach(([key]) => { ctyScores[key] = { total:0, count:0 }; });
+  participants.forEach(name => {
+    const ctyKey = participantCountries[name];
+    if(!ctyKey || !ctyScores[ctyKey]) return;
+    ctyScores[ctyKey].total += scores[name]?.total || 0;
+    ctyScores[ctyKey].count++;
+  });
+  const ctyEntries = Object.entries(COUNTRIES).map(([key, c]) => {
+    const avg = ctyScores[key].count > 0 ? (ctyScores[key].total / ctyScores[key].count).toFixed(1) : 0;
+    return { key, c, avg: parseFloat(avg), total: ctyScores[key].total, count: ctyScores[key].count };
+  }).sort((a, b) => b.avg - a.avg);
+  const maxCtyAvg = Math.max(...ctyEntries.map(e => e.avg), 1);
+  ctyEntries.forEach(({ key, c, avg, total, count }) => {
+    const row = document.createElement('div'); row.className = 'fn-row';
+    row.innerHTML = `<div class="fn-row-label"><span class="fn-badge ${c.cls}">${c.label}</span></div><div class="fn-bar-track"><div class="fn-bar-fill" style="width:${Math.round((avg/maxCtyAvg)*100)}%;background:${c.color};"></div></div><div class="fn-pts">${avg} avg</div>`;
+    countryCard.appendChild(row);
+    const sub = document.createElement('div'); sub.style.cssText = 'font-size:11px;color:var(--t3);margin:-6px 0 10px 0;padding-left:4px;';
+    sub.textContent = `${count} participant${count!==1?'s':''} · ${total} total pts`;
+    countryCard.appendChild(sub);
+  });
+  c.appendChild(countryCard);
+
   // ── FUN STATS ──
   const funCard=document.createElement('div');funCard.className='dash-card';
   funCard.innerHTML=`<h3>Fun stats</h3><p class="sub">Highlights across the tournament so far</p>`;
@@ -3225,6 +3278,7 @@ async function authRegister() {
   const email   = document.getElementById('reg-email')?.value.trim().toLowerCase();
   const name    = document.getElementById('reg-name')?.value.trim();
   const fn      = document.getElementById('reg-fn')?.value;
+  const country = document.getElementById('reg-country')?.value || null;
   const pin     = document.getElementById('reg-pin')?.value;
   const pinConf = document.getElementById('reg-pin-confirm')?.value;
   const errEl   = document.getElementById('reg-error');
@@ -3282,7 +3336,7 @@ async function authRegister() {
     const res = await sbFetch('users', {
       method:  'POST',
       headers: { 'Prefer': 'return=representation' },
-      body:    { email, name, fn, pin_hash: pinHash },
+      body: { email, name, fn, country: country||null, pin_hash: pinHash },
     });
 
     // Success if we got an array back (return=representation) or ok:true
@@ -3446,6 +3500,7 @@ function syncNewUserToParticipants(user) {
     participants.push(user.name);
   }
   participantFunctions[user.name] = user.fn || 'di';
+    if(user.country) participantCountries[user.name] = user.country;
 
   const sel = document.getElementById('participant-select');
   if(sel && !Array.from(sel.options).some(o => o.value === user.name)) {
