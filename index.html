@@ -1281,14 +1281,24 @@ select.portal-input option{background:#fff;}
 
 
 // ── MICROSOFT TEAMS INIT ──
-// Initialise Teams SDK if running inside Teams
-(function() {
-  if(window.microsoftTeams) {
-    microsoftTeams.app.initialize().then(() => {
-      microsoftTeams.app.notifyAppLoaded();
-      microsoftTeams.app.notifySuccess();
-    }).catch(() => {});
+// Initialise Teams SDK only when the app is actually running inside Microsoft Teams.
+// This avoids noisy async message-channel errors when opened directly in a browser.
+(function () {
+  const isInIframe = window.self !== window.top;
+  const looksLikeTeams = /Teams|Microsoft Teams/i.test(navigator.userAgent);
+
+  if (!window.microsoftTeams?.app || (!isInIframe && !looksLikeTeams)) {
+    return;
   }
+
+  window.microsoftTeams.app.initialize()
+    .then(() => {
+      window.microsoftTeams.app.notifyAppLoaded();
+      window.microsoftTeams.app.notifySuccess();
+    })
+    .catch((err) => {
+      console.warn('Teams SDK initialisation skipped:', err);
+    });
 })();
 
 // ════════════════════════════════════════════════════════════
