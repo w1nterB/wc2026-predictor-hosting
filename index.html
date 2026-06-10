@@ -436,9 +436,48 @@ select.portal-input option{background:#fff;}
 .dash-card p.sub{font-size:14px;color:var(--t3);margin-bottom:14px;}
 
 /* leaderboard */
-.lb-row{display:grid;grid-template-columns:32px 1fr 52px 52px 58px 52px 44px;align-items:center;gap:3px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.lb-row{
+  display:grid;
+  grid-template-columns:46px minmax(220px,1fr) 92px 96px 96px 124px 90px;
+  align-items:center;
+  gap:12px;
+  padding:12px 0;
+  border-bottom:1px solid var(--border);
+  font-size:14px;
+}
 .lb-row:last-child{border-bottom:none;}
-.lb-row.header{color:var(--t3);font-size:14px;text-transform:uppercase;letter-spacing:.8px;padding-bottom:8px;font-family:'DM Mono',monospace;}
+.lb-row.header{
+  color:var(--t3);
+  font-size:12px;
+  font-weight:800;
+  text-transform:none;
+  letter-spacing:.3px;
+  padding:12px 0 10px;
+  font-family:'Open Sans',sans-serif;
+}
+.lb-row.header span{text-align:right;white-space:nowrap;}
+.lb-row.header span:nth-child(1),
+.lb-row.header span:nth-child(2){text-align:left;}
+.lb-row .rank,
+.lb-row .rank-no{
+  width:30px;
+  height:30px;
+  border-radius:50%;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:13px;
+  font-weight:800;
+  font-family:'DM Mono',monospace;
+}
+.lb-row .rank.gold{background:var(--amber-bg);color:var(--amber-dk);border:1px solid rgba(186,146,0,.25);}
+.lb-row .rank.silver{background:#F0F1F3;color:#6b7280;border:1px solid #dde0e5;}
+.lb-row .rank.bronze{background:#FEF3E7;color:#9a6a30;border:1px solid rgba(205,140,74,.25);}
+.lb-row .rank:not(.gold):not(.silver):not(.bronze){background:var(--page);color:var(--t3);border:1px solid var(--border);}
+@media(max-width:900px){
+  .lb-row{grid-template-columns:34px minmax(120px,1fr) 64px 70px 70px 86px 62px;gap:6px;font-size:12px;}
+  .lb-row.header{font-size:11px;}
+}
 .rank-no{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;font-family:'DM Mono',monospace;}
 .r1{background:var(--amber-bg);color:var(--amber-dk);border:1px solid rgba(186,146,0,.25);}
 .r2{background:#F0F1F3;color:#6b7280;border:1px solid #dde0e5;}
@@ -1281,24 +1320,14 @@ select.portal-input option{background:#fff;}
 
 
 // ── MICROSOFT TEAMS INIT ──
-// Initialise Teams SDK only when the app is actually running inside Microsoft Teams.
-// This avoids noisy async message-channel errors when opened directly in a browser.
-(function () {
-  const isInIframe = window.self !== window.top;
-  const looksLikeTeams = /Teams|Microsoft Teams/i.test(navigator.userAgent);
-
-  if (!window.microsoftTeams?.app || (!isInIframe && !looksLikeTeams)) {
-    return;
+// Initialise Teams SDK if running inside Teams
+(function() {
+  if(window.microsoftTeams) {
+    microsoftTeams.app.initialize().then(() => {
+      microsoftTeams.app.notifyAppLoaded();
+      microsoftTeams.app.notifySuccess();
+    }).catch(() => {});
   }
-
-  window.microsoftTeams.app.initialize()
-    .then(() => {
-      window.microsoftTeams.app.notifyAppLoaded();
-      window.microsoftTeams.app.notifySuccess();
-    })
-    .catch((err) => {
-      console.warn('Teams SDK initialisation skipped:', err);
-    });
 })();
 
 // ════════════════════════════════════════════════════════════
@@ -2514,16 +2543,19 @@ function scoreMatchBreakdown(pred,actual){
 function calcScores(){
   const s={};
   participants.forEach(name=>{
-    s[name]={total:0,byGroup:{},correct:0,exact:0,played:0,specials:0};
+    s[name]={total:0,byGroup:{},correct:0,exact:0,played:0,predicted:0,missed:0,specials:0};
     const p=predictions[name]||{};
     // Match scores
     ALL_MATCHES.forEach(m=>{
       if(!results[m.id])return;
-      const bd=scoreMatchBreakdown(p[m.id],results[m.id]);
+      const pred = p[m.id];
+      const bd=scoreMatchBreakdown(pred,results[m.id]);
       const g=m.group||'other';
       s[name].total+=bd.total;
       s[name].byGroup[g]=(s[name].byGroup[g]||0)+bd.total;
       s[name].played++;
+      if(pred && pred.home !== undefined && pred.away !== undefined) s[name].predicted++;
+      else s[name].missed++;
       if(bd.result>0)s[name].correct++;
       if(bd.score===6)s[name].exact++;
       if(bd.score>0)s[name].scoreHits=(s[name].scoreHits||0)+1;
@@ -2551,8 +2583,8 @@ function renderDashboard(){
   lb.innerHTML=`<h3>Leaderboard <span style="font-size:12px;font-weight:400;color:var(--t3);margin-left:8px;">${played} result${played!==1?'s':''} in${hasSpecials?' · specials scored':''}</span></h3>`;
   const hdr=document.createElement('div');hdr.className='lb-row header';
   const hdrCols = hasSpecials
-    ? `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">+Spc</span><span style="text-align:right">Tot</span><span style="text-align:right">Pred</span><span style="text-align:right">✓✓</span>`
-    : `<span>#</span><span>Name</span><span style="text-align:right">Pts</span><span style="text-align:right">Pred</span><span style="text-align:right">✓✓</span><span style="text-align:right">Miss</span>`;
+    ? `<span>#</span><span>Participant</span><span>Points</span><span>Specials</span><span>Total Score</span><span>Predictions</span><span>Exact</span>`
+    : `<span>#</span><span>Participant</span><span>Points</span><span>Predictions</span><span>Exact</span><span>Missed</span>`;
   hdr.innerHTML=hdrCols;
   lb.appendChild(hdr);
   ranked.forEach(([name,s],i)=>{
@@ -2560,7 +2592,7 @@ function renderDashboard(){
     const row=document.createElement('div');row.className='lb-row';
     const matchPts   = s.total - s.specials;
     const predCell   = s.played > 0
-      ? `${s.predicted}<span style="font-size:10px;color:var(--t3);">/${s.played}</span>`
+      ? `${s.predicted ?? 0}<span style="font-size:10px;color:var(--t3);">/${s.played}</span>`
       : '—';
     const missedCell = s.missed > 0
       ? `<span style="color:var(--red-dk);">${s.missed}</span>`
