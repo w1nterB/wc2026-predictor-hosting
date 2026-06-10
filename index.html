@@ -1130,7 +1130,7 @@ select.portal-input option{background:#fff;}
   </button>
 
   <div class="sb-footer">
-    <div class="sb-status live" id="sb-status-pill"><span class="live-dot green" id="sb-status-dot"></span><span id="sb-status-text">Closed</span></div>
+    <div class="sb-status" id="sb-status-pill"><span class="live-dot" id="sb-status-dot"></span><span id="sb-status-text"></span></div>
   </div>
 </aside>
 
@@ -1156,7 +1156,7 @@ select.portal-input option{background:#fff;}
         </div>
         <!-- Hidden select used internally for compatibility -->
         <select class="portal-select" id="participant-select" onchange="onParticipantChange()" style="display:none;"><option value="">— select your name —</option></select>
-        <div class="submitted-tag" id="submitted-badge"><span class="live-dot"></span><span id="submitted-badge-text">Predictions submitted</span></div>
+        <div class="submitted-tag" id="submitted-badge" style="display:none;"><span class="live-dot"></span><span id="submitted-badge-text">Predictions submitted</span></div>
       </div>
 
       <div class="welcome-card hidden" id="first-time-welcome">
@@ -3457,6 +3457,7 @@ function onLoginSuccess(user) {
     btn.classList.toggle('active', map[btn.textContent.trim()] === 'next');
   });
   // Re-render now that view mode and user are both set
+  updatePhaseBadges();
   showFirstTimeWelcome(user);
   renderMatches();
   if(predictions[user.name]) loadPredictions(user.name);
