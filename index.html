@@ -2445,13 +2445,15 @@ function countUnsavedPredictions(name) {
   if(!name) return 0;
   const saved = predictions[name] || {};
   let count = 0;
-  const draftSpecials = getCurrentSpecialsDraft();
-  const hasAnySpecial = Object.values(draftSpecials).some(Boolean);
-  if(hasAnySpecial) {
-    const old = saved.specials || {};
-    const changed = ['winner','runnerUp','topScorer','surprise','sf1','sf2','sf3','sf4']
-      .some(k => (draftSpecials[k] || '') !== (old[k] || ''));
-    if(changed) count++;
+  if(PHASES.specials) {
+    const draftSpecials = getCurrentSpecialsDraft();
+    const hasAnySpecial = Object.values(draftSpecials).some(Boolean);
+    if(hasAnySpecial) {
+      const old = saved.specials || {};
+      const changed = ['winner','runnerUp','topScorer','surprise','sf1','sf2','sf3','sf4']
+        .some(k => (draftSpecials[k] || '') !== (old[k] || ''));
+      if(changed) count++;
+    }
   }
   document.querySelectorAll('.match-card').forEach(card => {
     const matchId = card.id?.replace('match-','');
@@ -2550,7 +2552,7 @@ async function submitPredictions(){
     }
     verifiedUser = name;
   }
-  const sp={
+  const sp = PHASES.specials ? {
     winner:   document.getElementById('s-winner').value,
     runnerUp: document.getElementById('s-runnerup').value,
     topScorer:document.getElementById('s-topscorer').value,
@@ -2559,9 +2561,9 @@ async function submitPredictions(){
     sf2:document.getElementById('s-sf2').value,
     sf3:document.getElementById('s-sf3').value,
     sf4:document.getElementById('s-sf4').value,
-  };
+  } : null;
   if(!predictions[name]) predictions[name]={};
-  predictions[name].specials=sp;
+  if(PHASES.specials && sp) predictions[name].specials=sp;
 
   // Collect + store match predictions
   const matchPreds={};
@@ -2577,7 +2579,7 @@ async function submitPredictions(){
   // Build all rows and write in parallel
 
   // ── WINNER NOT IN SEMIS CHECK ──
-  if(sp.winner && sp.winner !== '') {
+  if(PHASES.specials && sp && sp.winner && sp.winner !== '') {
     const sfTeams = [sp.sf1, sp.sf2, sp.sf3, sp.sf4].filter(Boolean);
     if(sfTeams.length > 0 && !sfTeams.includes(sp.winner)) {
       const confirmed = confirm(
@@ -2590,7 +2592,7 @@ async function submitPredictions(){
     }
   }
   const writes = [];
-  writes.push(postToSheet({name, type:'specials', matchId:'', ...sp}));
+  if(PHASES.specials && sp) writes.push(postToSheet({name, type:'specials', matchId:'', ...sp}));
   Object.entries(matchPreds).forEach(([matchId, pred]) => {
     const m = ALL_MATCHES.find(x => x.id === matchId);
     writes.push(postToSheet({
@@ -2617,7 +2619,7 @@ async function submitPredictions(){
     if(badge) badge.classList.add('show');
     if(badgeText) {
       if(matchCount === 0) {
-        badgeText.textContent = 'Specials submitted';
+        badgeText.textContent = PHASES.specials ? 'Specials submitted' : 'Nothing new to submit';
       } else if(matchCount === 1) {
         const matchId = Object.keys(matchPreds)[0];
         const m = ALL_MATCHES.find(x => x.id === matchId);
@@ -2630,7 +2632,7 @@ async function submitPredictions(){
     if(note) note.textContent = `Last saved at ${new Date().toLocaleTimeString()}`;
     updateMatchSaveStatuses();
     updateSubmitState();
-    showToast(`✓ ${matchCount} match prediction${matchCount!==1?'s':''} saved`);
+    showToast(matchCount ? `✓ ${matchCount} match prediction${matchCount!==1?'s':''} saved` : '✓ Saved');
   } catch(err) {
     console.error('submitPredictions error:', err);
     if(submitBtn) { submitBtn.style.background = ''; submitBtn.disabled = false; updateSubmitState(); }
@@ -3603,6 +3605,43 @@ function showToast(msg, isError=false) {
 // ── INITIALISE ──
 // 1. Populate static team dropdowns (no DB needed)
 populateTeamSelects();
+
+
+function renderPhaseToggles() {
+  // Public page has no admin toggles, but finishInit calls this for compatibility.
+}
+
+function updatePhaseBadges() {
+  const specialsBadge = document.getElementById('specials-phase-badge');
+  if(specialsBadge) {
+    specialsBadge.textContent = PHASES.specials ? 'Open · closes 18 Jun' : 'Closed';
+    specialsBadge.className = 's-badge ' + (PHASES.specials ? 'sb-open' : 'sb-done');
+  }
+
+  const specialsWrap = document.getElementById('specials-card-wrap');
+  if(specialsWrap) specialsWrap.style.display = PHASES.specials ? '' : 'none';
+
+  ['s-winner','s-runnerup','s-topscorer','s-surprise','s-sf1','s-sf2','s-sf3','s-sf4'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.disabled = !PHASES.specials;
+  });
+
+  const matchBadge = document.getElementById('match-phase-badge');
+  if(matchBadge) {
+    matchBadge.textContent = PHASES.groupStage ? 'Group stage live' : 'Closed';
+    matchBadge.className = 's-badge ' + (PHASES.groupStage ? 'sb-live' : 'sb-done');
+  }
+
+  const statusPill = document.getElementById('sb-status-pill');
+  const statusDot = document.getElementById('sb-status-dot');
+  const statusText = document.getElementById('sb-status-text');
+  const anyOpen = PHASES.specials || PHASES.groupStage;
+  if(statusPill) statusPill.className = 'sb-status ' + (anyOpen ? 'live' : 'closed');
+  if(statusDot) statusDot.className = 'live-dot ' + (anyOpen ? 'green' : 'grey');
+  if(statusText) statusText.textContent = PHASES.groupStage ? 'Group live' : PHASES.specials ? 'Specials open' : 'Closed';
+
+  updateSubmitState();
+}
 
 // 2. finishInit is called by initApp() after DB loads
 function finishInit() {
