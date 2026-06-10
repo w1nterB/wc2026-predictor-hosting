@@ -1882,6 +1882,8 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
   const scoreDisplay = hr
     ? `<div class="result-score">${results[m.id].home} &ndash; ${results[m.id].away}</div>`
     : `<div class="match-vs">VS</div>`;
+  // If match is locked by time (not result) and user has a saved prediction, show it
+  const userPred = !hr && locked && currentUser && predictions[currentUser]?.[m.id];
   const timeStr = fmtMatchTime(m.id);
   const currentUser = document.getElementById('participant-select')?.value;
   const userWinner = currentUser && predictions[currentUser]?.specials?.winner;
@@ -1889,6 +1891,14 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
   const aStar = userWinner===m.away ? `<span class="winner-star" title="Your predicted winner">★</span>` : '';
   const hf = m.hf||''; const af = m.af||'';
   card.innerHTML = `<div class="team-side"><span class="team-flag">${hf}</span><span class="team-name">${m.home}${hStar}</span></div><div class="match-meta"><div class="match-time">${timeStr}</div>${scoreDisplay}</div><div class="team-side right"><span class="team-name">${m.away}${aStar}</span><span class="team-flag">${af}</span></div><div class="prediction-row"><div class="score-input-wrap" style="justify-content:flex-start;"><label>${m.home}</label><input class="score-input" id="h-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}></div><span class="score-sep">&ndash;</span><div class="score-input-wrap" style="justify-content:flex-end;"><input class="score-input" id="a-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}><label>${m.away}</label></div><div class="match-save-status" id="save-${m.id}"></div></div>`;
+  // Populate saved prediction immediately so view changes don't wipe values
+  if(!locked && currentUser && predictions[currentUser]?.[m.id]) {
+    const saved = predictions[currentUser][m.id];
+    const hIn = card.querySelector('#h-'+m.id);
+    const aIn = card.querySelector('#a-'+m.id);
+    if(hIn && saved.home !== undefined) hIn.value = saved.home;
+    if(aIn && saved.away !== undefined) aIn.value = saved.away;
+  }
   // Add preview panel for group stage matches (skip in bulk views for performance)
   if(!skipPreview && (m.round === '1' || m.round === '2' || m.round === '3')) {
     const preview = buildPreviewPanel(m.id);
@@ -2464,9 +2474,14 @@ function loadPredictions(name){
   const p = predictions[name]; if(!p) return;
   // Specials
   if(p.specials){
-    ['winner','runnerup','topscorer','surprise','sf1','sf2','sf3','sf4'].forEach(k=>{
-      const el=document.getElementById('s-'+k);
-      if(el && p.specials[k]) el.value=p.specials[k];
+    // Map element IDs to specials object keys (camelCase vs lowercase)
+    const specialsKeyMap = {
+      winner:'winner', runnerup:'runnerUp', topscorer:'topScorer',
+      surprise:'surprise', sf1:'sf1', sf2:'sf2', sf3:'sf3', sf4:'sf4'
+    };
+    Object.entries(specialsKeyMap).forEach(([elId, objKey])=>{
+      const el=document.getElementById('s-'+elId);
+      if(el && p.specials[objKey]) el.value=p.specials[objKey];
     });
   }
   // Only update VISIBLE score inputs — querySelector is far faster than 104x getElementById
@@ -3015,7 +3030,7 @@ function renderDashboard(){
   const fnEntries=Object.entries(FUNCTIONS).map(([key,f])=>{
     const avg=fnScores[key].count>0?(fnScores[key].total/fnScores[key].count).toFixed(1):'—';
     return {key,f,avg,total:fnScores[key].total,count:fnScores[key].count};
-  }).sort((a,b)=>(parseFloat(b.avg)||0)-(parseFloat(a.avg)||0));
+  }).sort((a,b)=>b.total-a.total);
   const maxFnTotal=Math.max(...fnEntries.map(e=>e.total),1);
   fnEntries.forEach(({key,f,avg,total,count})=>{
     if(count===0)return;
@@ -3054,7 +3069,7 @@ function renderDashboard(){
   const ctyEntries=Object.entries(COUNTRIES).map(([key,ct])=>{
     const avg=ctyScores[key].count>0?(ctyScores[key].total/ctyScores[key].count).toFixed(1):'—';
     return {key,ct,avg,total:ctyScores[key].total,count:ctyScores[key].count};
-  }).sort((a,b)=>(parseFloat(b.avg)||0)-(parseFloat(a.avg)||0));
+  }).sort((a,b)=>b.total-a.total);
   const maxCtyTotal=Math.max(...ctyEntries.map(e=>e.total),1);
   ctyEntries.forEach(({key,ct,avg,total,count})=>{
     if(count===0)return;
