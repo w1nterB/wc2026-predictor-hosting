@@ -2914,6 +2914,22 @@ function renderDashboard(){
       <div class="fun-stat-name">${oracleNow && oracleNow[1].exact > 0 ? esc(oracleNow[0]) : 'TBD'}</div>
       <div class="fun-stat-sub">${oracleNow && oracleNow[1].exact > 0 ? oracleNow[1].exact + ' exact scores' : 'Most exact scores'}</div>
     </div>`;
+
+  // On Fire — computed separately and appended
+  const lastMsH = ALL_MATCHES.filter(m => results[m.id]).slice(-3);
+  const recentPtsH = {};
+  participants.forEach(n => {
+    recentPtsH[n] = lastMsH.reduce((sum, m) => sum + scoreMatch((predictions[n]||{})[m.id], results[m.id]), 0);
+  });
+  const hotNow = Object.entries(recentPtsH).sort((a,b) => b[1]-a[1])[0];
+  const onFireCard = document.createElement('div'); onFireCard.className = 'fun-stat-card';
+  onFireCard.innerHTML =
+    '<div class="fun-stat-emoji">🔥</div>' +
+    '<div class="fun-stat-label">On Fire</div>' +
+    '<div class="fun-stat-sub" style="font-size:10px;color:var(--t3);margin-bottom:4px;">Last 3 matches</div>' +
+    '<div class="fun-stat-name">' + (hotNow && hotNow[1]>0 ? esc(hotNow[0]) : 'TBD') + '</div>' +
+    '<div class="fun-stat-sub">' + (hotNow && hotNow[1]>0 ? hotNow[1]+' pts' : '') + '</div>';
+  highlights.appendChild(onFireCard);
   lbPane.appendChild(highlights);
 
   // Dynamic grid columns — full words, generous spacing
@@ -2984,20 +3000,7 @@ function renderDashboard(){
   lbPane.appendChild(tbl);
 
 
-  // Fun stats
-  const funCard = document.createElement('div'); funCard.className = 'dash-card'; funCard.style.marginTop='16px';
-  funCard.innerHTML = '<h3>Fun stats</h3><p class="sub">Highlights across the tournament so far</p>';
-  const funGrid = document.createElement('div'); funGrid.className = 'fun-stat-grid';
-  const topTipper = ranked[0];
-  funGrid.innerHTML += `<div class="fun-stat-card"><div class="fun-stat-emoji">🎯</div><div class="fun-stat-label">Top Tipper</div><div class="fun-stat-name">${topTipper?esc(topTipper[0]):'TBD'}</div><div class="fun-stat-sub">${topTipper?topTipper[1].total+' pts':''}</div></div>`;
-  const oracle = ranked.slice().sort((a,b)=>b[1].exact-a[1].exact)[0];
-  funGrid.innerHTML += `<div class="fun-stat-card"><div class="fun-stat-emoji">🔮</div><div class="fun-stat-label">The Oracle</div><div class="fun-stat-sub-label" style="font-size:10px;color:var(--t3);margin:-4px 0 4px;">Most exact scores</div><div class="fun-stat-name">${oracle&&oracle[1].exact>0?esc(oracle[0]):'TBD'}</div><div class="fun-stat-sub">${oracle&&oracle[1].exact>0?oracle[1].exact+' exact scores':''}</div></div>`;
-  const lastMs=ALL_MATCHES.filter(m=>results[m.id]).slice(-3);
-  const recentPts={};participants.forEach(n=>{recentPts[n]=lastMs.reduce((sum,m)=>sum+scoreMatch((predictions[n]||{})[m.id],results[m.id]),0);});
-  const hotStreak=Object.entries(recentPts).sort((a,b)=>b[1]-a[1])[0];
-  funGrid.innerHTML += `<div class="fun-stat-card"><div class="fun-stat-emoji">🔥</div><div class="fun-stat-label">On Fire</div><div class="fun-stat-sub-label" style="font-size:10px;color:var(--t3);margin:-4px 0 4px;">Last 3 matches</div><div class="fun-stat-name">${hotStreak&&hotStreak[1]>0?esc(hotStreak[0]):'TBD'}</div><div class="fun-stat-sub">${hotStreak&&hotStreak[1]>0?hotStreak[1]+' pts':''}</div></div>`;
-  funCard.appendChild(funGrid);
-  lbPane.appendChild(funCard);
+  // Fun stats moved to top highlights section
 
   // ══ BY FUNCTION PANE ══
   const fnPane = panes['fn'];
