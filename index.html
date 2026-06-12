@@ -609,9 +609,17 @@ select.portal-input option{background:#fff;}
   .view-mode-bar .view-mode-btn,.view-mode-bar span{flex-shrink:0;}
   .match-card{grid-template-columns:1fr auto 1fr;padding:12px 12px;gap:8px;}
   .team-name{font-size:13px;}
-  .prediction-row{grid-template-columns:1fr;gap:8px;}
+  .prediction-row{grid-template-columns:1fr;gap:6px;}
   .score-sep{display:none;}
-  .score-input-wrap{justify-content:space-between!important;}
+  /* Each row: team label LEFT, score box RIGHT — same order for home and away
+     so the box always sits beside its own team name and can't be swapped */
+  .score-input-wrap{
+    justify-content:space-between!important;
+    border:1px solid var(--border);border-radius:8px;
+    padding:8px 10px;background:var(--page);
+  }
+  .score-input-wrap label{order:1;}
+  .score-input-wrap input{order:2;}
   .score-input{width:52px;font-size:18px;padding:6px 3px;}
   .sticky-submit-bar{padding:12px 16px;align-items:flex-start;}
   .sticky-submit-bar .submit-btn{width:100%;}
@@ -1711,14 +1719,15 @@ let ALL_MATCHES = [];
 
 
 // Groups derived from match data
-const GROUPS=(()=>{
+function getGroups(){
   const gmap={};
   ALL_MATCHES.filter(m=>m.group&&m.group.startsWith('Group')).forEach(m=>{
     if(!gmap[m.group])gmap[m.group]={name:m.group,matches:[]};
     gmap[m.group].matches.push(m);
   });
   return Object.values(gmap).sort((a,b)=>a.name.localeCompare(b.name));
-})();
+}
+let GROUPS=[];
 
 // ── USER TIMEZONE ──
 function getUserTZ(){ return Intl.DateTimeFormat().resolvedOptions().timeZone; }
@@ -3235,8 +3244,7 @@ function renderPublicPage(){
   schedTable.innerHTML=`<thead><tr><th>Group</th><th>Home</th><th style="text-align:center;">Score</th><th>Away</th><th>Kickoff (your time)</th></tr></thead>`;
   const schedTbody=document.createElement('tbody');
   ALL_MATCHES.forEach(m=>{
-    const r=results[m.id];
-    const tr=document.createElement('tr');tr.dataset.group=m.group||'';
+        const tr=document.createElement('tr');tr.dataset.group=m.group||'';
         const schedR = results[m.id] || bracketResults[m.id];
     const scoreCell = schedR
       ? `<span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--teal-mid);">${schedR.home}&thinsp;–&thinsp;${schedR.away}</span>`
@@ -3913,6 +3921,7 @@ async function refreshPhasesFromSupabase() {
 
 // 2. finishInit is called by initApp() after DB loads
 function finishInit() {
+    GROUPS = getGroups();
   // Set dynamic tournament dates from match data
   const tz = getUserTZ();
   const allUtcTimes = ALL_MATCHES.map(m => new Date(m.utc)).filter(d => !isNaN(d));
