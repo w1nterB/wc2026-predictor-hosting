@@ -602,6 +602,7 @@ select.portal-input option{background:#fff;}
 .submit-btn.clean{background:var(--green-dk);box-shadow:0 2px 8px rgba(118,171,66,.24);}
 
 @media(max-width:700px){
+  .content{padding-bottom:140px;}
   .welcome-steps{grid-template-columns:1fr;}
   .welcome-top{flex-direction:column;}
   .welcome-dismiss{align-self:flex-start;}
@@ -1290,10 +1291,10 @@ select.portal-input option{background:#fff;}
           <span style="font-size:11px;font-weight:700;color:var(--t3);margin-right:4px;">View by</span>
           <button class="view-mode-btn" onclick="setMatchView('next',this)">Next match</button>
           <button class="view-mode-btn" onclick="setMatchView('upcoming7',this)">Next 7 days</button>
-          <button class="view-mode-btn" onclick="setMatchView('round',this)">Matchday</button>
           <button class="view-mode-btn" onclick="setMatchView('group',this)">Group</button>
-          <button class="view-mode-btn" onclick="setMatchView('all',this)">All matches</button>
           <button class="view-mode-btn view-mode-more" type="button" onclick="toggleAdvancedViews(this)">More views</button>
+          <button class="view-mode-btn advanced-view" onclick="setMatchView('round',this)">Matchday</button>
+          <button class="view-mode-btn advanced-view" onclick="setMatchView('all',this)">All matches</button>
           <button class="view-mode-btn advanced-view" onclick="setMatchView('country',this)">By country</button>
         </div>
 
@@ -1994,7 +1995,7 @@ function renderMatches(){
     } else if(mode === 'country') {
       renderByCountry(upcoming, ALL_MATCHES);
     } else if(mode === 'all') {
-      renderByMatchday(upcoming, ALL_MATCHES.filter(m=>m.group&&!completedIds.has(m.id)), ALL_MATCHES.filter(m=>completedIds.has(m.id)));
+      renderAllMatches(upcoming, ALL_MATCHES);
     } else {
       // Default: matchday
       renderByMatchday(upcoming, upcomingMatches, []);
@@ -2145,6 +2146,11 @@ function appendPredictMoreButton(container, allUpcoming, afterTime, tz) {
 }
 
 function renderByCountry(container, matches) {
+  // Visible heading so the view change is obvious
+  const heading = document.createElement('div');
+  heading.style.cssText = 'font-size:13px;font-weight:700;color:var(--t1);margin-bottom:10px;';
+  heading.textContent = '🌍 Matches by country';
+  container.appendChild(heading);
   // Build a search/select UI — find all teams and their matches
   const teamMatches = {};
   // Only include group stage teams (exclude KO placeholders like 1A, 2B, 3CEFHI)
@@ -2299,6 +2305,36 @@ function renderUpcoming7Body(container, week, later, tz, now, showPreviews) {
     container.appendChild(btn);
     container.appendChild(laterDiv);
   }
+}
+
+function renderAllMatches(container, allMatches) {
+  const tz = getUserTZ();
+  const completedIds = new Set(Object.keys(results));
+  // Build ordered list of round labels
+  const roundOrder = ['1','2','3','Round of 32','Round of 16','Quarter Finals','Semi Finals','Finals'];
+  const roundLabels = {
+    '1':'Matchday 1','2':'Matchday 2','3':'Matchday 3',
+    'Round of 32':'Round of 32','Round of 16':'Round of 16',
+    'Quarter Finals':'Quarter-finals','Semi Finals':'Semi-finals','Finals':'Final'
+  };
+  roundOrder.forEach(rnd => {
+    const roundMatches = allMatches.filter(m => m.round === rnd);
+    if(!roundMatches.length) return;
+    roundMatches.sort((a,b)=> new Date(a.utc) - new Date(b.utc));
+
+    const dates = roundMatches.map(m => new Date(m.utc));
+    const minD = new Date(Math.min(...dates));
+    const maxD = new Date(Math.max(...dates));
+    const dateRange = minD.toDateString()===maxD.toDateString()
+      ? minD.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:tz})
+      : minD.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:tz}) + ' – ' + maxD.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:tz});
+
+    const section = document.createElement('div');
+    section.className = 'matchday-section';
+    section.innerHTML = '<div class="group-header"><span class="group-badge">' + (roundLabels[rnd]||rnd) + '</span><span style="font-size:11px;color:var(--t3);margin-left:6px;">' + dateRange + '</span><hr></div>';
+    roundMatches.forEach(m => section.appendChild(buildMatchCard(m, false)));
+    container.appendChild(section);
+  });
 }
 
 function renderByMatchday(container, upcomingMatches, completedMatches) {
