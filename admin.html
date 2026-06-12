@@ -1307,6 +1307,37 @@ create policy "anon all" on predictions  for all using (true) with check (true);
         </div>
 
       </div>
+    
+      <!-- MATCH CARD GENERATOR -->
+      <div class="admin-card" style="border-left:3px solid #25C4B3;">
+        <div class="admin-title">⚽ Match Card Generator</div>
+        <div class="admin-sub">Generate a pre-match graphic for any match — pulls H2H and facts live from the database.</div>
+
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px;">
+          <div class="field-group" style="flex:1;min-width:220px;">
+            <div class="field-label">Select match</div>
+            <select class="portal-input" id="card-match-select">
+              <option value="">Choose a match…</option>
+            </select>
+          </div>
+          <button class="btn-primary" onclick="generateMatchCard()" style="margin-bottom:1px;">
+            Generate card
+          </button>
+          <button class="btn-secondary" id="card-download-btn" onclick="downloadMatchCard()"
+                  style="display:none;margin-bottom:1px;">
+            ⬇ Download PNG
+          </button>
+        </div>
+
+        <!-- Preview area -->
+        <div id="card-preview-area" style="display:none;">
+          <div style="font-size:11px;color:var(--t3);margin-bottom:10px;">
+            Preview — right-click to save, or use Download PNG above
+          </div>
+          <div id="card-svg-wrap" style="max-width:680px;border-radius:12px;overflow:hidden;"></div>
+        </div>
+      </div>
+
     </div><!-- /tab-admin -->
   </div>
 </div>
@@ -3350,6 +3381,285 @@ document.addEventListener('DOMContentLoaded', () => {
   if(pinInput) pinInput.addEventListener('keydown', e => { if(e.key === 'Enter') checkPin(); });
   if(pinInput) pinInput.focus();
 });
+
+// ══════════════════════════════════════════════
+//  MATCH CARD GENERATOR
+// ══════════════════════════════════════════════
+
+async function populateCardMatchSelect() {
+  const sel = document.getElementById('card-match-select');
+  if(!sel || sel.options.length > 1) return;
+  sel.innerHTML = '<option value="">Choose a match…</option>';
+  ALL_MATCHES.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.id;
+    o.textContent = '#' + m.num + ' · ' + m.hf + ' ' + m.home + ' vs ' + m.away + ' ' + m.af + ' (' + (m.group || m.round) + ')';
+    sel.appendChild(o);
+  });
+}
+
+async function generateMatchCard() {
+  const sel   = document.getElementById('card-match-select');
+  const id    = sel?.value;
+  if(!id) { showToast('Select a match first', true); return; }
+
+  const match = ALL_MATCHES.find(x => x.id === id);
+  if(!match)  { showToast('Match not found', true); return; }
+
+  showToast('Fetching match data…');
+
+  // Fetch preview from Supabase
+  let preview = null;
+  try {
+    const rows = await sbFetch('match_previews?match_id=eq.' + id + '&select=*');
+    if(Array.isArray(rows) && rows.length) preview = rows[0];
+  } catch(e) {}
+
+  // Parse H2H
+  let h2h = [];
+  if(preview?.h2h) {
+    try { h2h = typeof preview.h2h === 'string' ? JSON.parse(preview.h2h) : preview.h2h; } catch(e) {}
+  }
+
+  // Win/draw tally
+  const homeLC = match.home.toLowerCase();
+  let wins = 0, draws = 0, losses = 0;
+  h2h.forEach(r => {
+    const res = (r.result || '').toLowerCase();
+    const parts = res.match(/(\d+)[^\d]+(\d+)/);
+    if(!parts) { draws++; return; }
+    const [,a,b] = parts.map(Number);
+    const isHomeFirst = res.indexOf(homeLC) < res.indexOf('–') || res.indexOf(homeLC) < res.indexOf('-');
+    const homeGoals = isHomeFirst ? a : b;
+    const awayGoals = isHomeFirst ? b : a;
+    if(homeGoals > awayGoals) wins++;
+    else if(homeGoals < awayGoals) losses++;
+    else draws++;
+  });
+
+  // Format match date/time in a readable way
+  const d      = new Date(match.utc);
+  const tz     = getUserTZ ? getUserTZ() : 'UTC';
+  const dayStr = d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', timeZone: tz });
+  const timeStr = d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', timeZone: tz });
+  const tzShort = new Intl.DateTimeFormat('en-GB',{ timeZone:tz, timeZoneName:'short'}).format(d).split(', ')[1] || tz;
+
+  const fact    = preview?.fact || '';
+  const isFirst = preview?.first_meeting === true;
+
+  // Build SVG
+  const svg = buildMatchCardSVG(match, h2h, wins, draws, losses, dayStr, timeStr, tzShort, fact, isFirst);
+
+  const wrap = document.getElementById('card-svg-wrap');
+  wrap.innerHTML = svg;
+  document.getElementById('card-preview-area').style.display  = 'block';
+  document.getElementById('card-download-btn').style.display  = '';
+  showToast('Card generated ✓');
+}
+
+function buildMatchCardSVG(m, h2h, wins, draws, losses, dayStr, timeStr, tzShort, fact, isFirst) {
+  const navy   = '#111820';
+  const navy2  = '#1A2330';
+  const navy3  = '#2D3540';
+  const teal   = '#25C4B3';
+  const tealLt = '#63DACD';
+  const amber  = '#E6BE2F';
+  const t1     = '#FFFFFF';
+  const t2     = '#8A94A6';
+  const t3     = '#394350';
+
+  const roundLabel = m.group || m.round || 'Knockout';
+  const matchNum   = '#' + m.num;
+
+  // Wrap text — returns array of lines for a given string + max chars
+  function wrapText(str, maxLen) {
+    const words = str.split(' ');
+    const lines = [];
+    let cur = '';
+    words.forEach(w => {
+      if((cur + ' ' + w).trim().length > maxLen) { if(cur) lines.push(cur.trim()); cur = w; }
+      else cur = (cur + ' ' + w).trim();
+    });
+    if(cur) lines.push(cur.trim());
+    return lines;
+  }
+
+  // Build H2H rows
+  let h2hRowsSVG = '';
+  let yOff = 440;
+  const rowsToShow = h2h.slice(0, 3);
+
+  if(isFirst || h2h.length === 0) {
+    h2hRowsSVG += `
+    <rect x="40" y="${yOff}" width="600" height="58" rx="10" fill="${navy2}"/>
+    <rect x="40" y="${yOff}" width="4" height="58" rx="2" fill="${t3}"/>
+    <text x="60" y="${yOff+22}" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="${t1}">First ever meeting</text>
+    <text x="60" y="${yOff+42}" font-family="system-ui,sans-serif" font-size="11" fill="${t2}">These sides have never faced each other at a major tournament.</text>`;
+    yOff += 74;
+  } else {
+    rowsToShow.forEach((r, idx) => {
+      const accentColor = idx === 0 ? teal : t3;
+      const resultLines = wrapText(r.result || '', 52);
+      const noteLines   = wrapText(r.note   || '', 68);
+      const rowH = 28 + resultLines.length * 20 + noteLines.length * 18;
+      h2hRowsSVG += `
+    <rect x="40" y="${yOff}" width="600" height="${rowH}" rx="10" fill="${navy2}"/>
+    <rect x="40" y="${yOff}" width="4" height="${rowH}" rx="2" fill="${accentColor}"/>
+    <text x="60" y="${yOff+20}" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="${accentColor}" letter-spacing="1">${esc(String(r.year))} · ${esc(r.event||'').toUpperCase()}</text>`;
+      let ty = yOff + 38;
+      resultLines.forEach(l => {
+        h2hRowsSVG += `<text x="60" y="${ty}" font-family="system-ui,sans-serif" font-size="15" font-weight="700" fill="${t1}">${esc(l)}</text>`;
+        ty += 20;
+      });
+      noteLines.forEach(l => {
+        h2hRowsSVG += `<text x="60" y="${ty}" font-family="system-ui,sans-serif" font-size="11" fill="${t2}">${esc(l)}</text>`;
+        ty += 18;
+      });
+      yOff += rowH + 10;
+    });
+  }
+
+  // Fact block
+  let factSVG = '';
+  let factYEnd = yOff;
+  if(fact) {
+    const factLines = wrapText(fact, 68);
+    const factH = 30 + factLines.length * 19 + 20;
+    factSVG = `
+  <line x1="40" y1="${yOff + 8}" x2="640" y2="${yOff + 8}" stroke="${t3}" stroke-width="0.5"/>
+  <text x="40" y="${yOff + 32}" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="${amber}" letter-spacing="2">DID YOU KNOW?</text>
+  <rect x="40" y="${yOff + 44}" width="600" height="${factH}" rx="10" fill="${navy2}"/>
+  <rect x="40" y="${yOff + 44}" width="4" height="${factH}" rx="2" fill="${amber}"/>`;
+    let fy = yOff + 72;
+    factLines.forEach(l => {
+      factSVG += `<text x="60" y="${fy}" font-family="system-ui,sans-serif" font-size="12" fill="${t2}">${esc(l)}</text>`;
+      fy += 19;
+    });
+    factYEnd = yOff + 44 + factH + 16;
+  }
+
+  // CTA
+  const ctaY  = factYEnd + 12;
+  const footY = ctaY + 88;
+  const totalH = footY + 40;
+
+  return `<svg width="100%" viewBox="0 0 680 ${totalH}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+<rect width="680" height="${totalH}" rx="16" fill="${navy}"/>
+<rect x="0" y="0" width="680" height="5" fill="${teal}"/>
+
+<!-- Header -->
+<rect width="28" height="28" rx="6" x="40" y="22" fill="${teal}"/>
+<text x="54" y="41" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="700" fill="${navy}">CO</text>
+<text x="78" y="40" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="${teal}" letter-spacing="2">COEVOLVE  ·  WC2026 PREDICTOR</text>
+<text x="640" y="30" text-anchor="end" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="${t2}" letter-spacing="1">${esc(roundLabel.toUpperCase())}  ·  ${esc(matchNum)}</text>
+<text x="640" y="46" text-anchor="end" font-family="system-ui,sans-serif" font-size="10" fill="${t2}">${esc(m.venue)}  ·  ${esc(dayStr)}  ·  ${esc(timeStr)} ${esc(tzShort)}</text>
+
+<!-- Match header bg -->
+<rect x="0" y="62" width="680" height="192" fill="${navy2}"/>
+<polygon points="0,62 340,62 200,254 0,254" fill="${teal}" opacity="0.04"/>
+<polygon points="340,62 680,62 680,254 480,254" fill="${amber}" opacity="0.03"/>
+
+<!-- PRE-MATCH badge -->
+<rect x="296" y="78" width="88" height="22" rx="11" fill="${teal}" opacity="0.15"/>
+<text x="340" y="94" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="${teal}" letter-spacing="1.5">PRE-MATCH</text>
+
+<!-- Home flag + name -->
+<text x="170" y="158" text-anchor="middle" font-family="system-ui,sans-serif" font-size="48">${m.hf}</text>
+<text x="170" y="194" text-anchor="middle" font-family="system-ui,sans-serif" font-size="18" font-weight="800" fill="${t1}">${esc(m.home)}</text>
+
+<!-- VS -->
+<text x="340" y="170" text-anchor="middle" font-family="system-ui,sans-serif" font-size="28" font-weight="800" fill="${t3}">VS</text>
+
+<!-- Away flag + name -->
+<text x="510" y="158" text-anchor="middle" font-family="system-ui,sans-serif" font-size="48">${m.af}</text>
+<text x="510" y="194" text-anchor="middle" font-family="system-ui,sans-serif" font-size="18" font-weight="800" fill="${t1}">${esc(m.away)}</text>
+
+<!-- Divider -->
+<line x1="40" y1="264" x2="640" y2="264" stroke="${t3}" stroke-width="0.5"/>
+
+<!-- H2H label -->
+<text x="40" y="295" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="${teal}" letter-spacing="2">HEAD TO HEAD</text>
+
+<!-- Record bar -->
+<rect x="40" y="306" width="600" height="50" rx="10" fill="${navy2}"/>
+<text x="152" y="324" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="${t2}">${esc(m.home)} wins</text>
+<text x="152" y="345" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="800" fill="${t1}">${wins}</text>
+<line x1="270" y1="314" x2="270" y2="348" stroke="${t3}" stroke-width="0.5"/>
+<text x="340" y="324" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="${t2}">Draws</text>
+<text x="340" y="345" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="800" fill="${teal}">${draws}</text>
+<line x1="410" y1="314" x2="410" y2="348" stroke="${t3}" stroke-width="0.5"/>
+<text x="528" y="324" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" fill="${t2}">${esc(m.away)} wins</text>
+<text x="528" y="345" text-anchor="middle" font-family="system-ui,sans-serif" font-size="22" font-weight="800" fill="${t1}">${losses}</text>
+
+<!-- H2H rows -->
+${h2hRowsSVG}
+
+<!-- Fact -->
+${factSVG}
+
+<!-- CTA strip -->
+<rect x="40" y="${ctaY}" width="600" height="62" rx="12" fill="${teal}" opacity="0.1" stroke="${teal}" stroke-width="1"/>
+<text x="340" y="${ctaY + 24}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="${t2}">What&apos;s your prediction?</text>
+<rect x="210" y="${ctaY + 32}" width="52" height="22" rx="11" fill="${navy3}" stroke="${teal}" stroke-width="1"/>
+<text x="236" y="${ctaY + 48}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="${teal}">?</text>
+<text x="302" y="${ctaY + 48}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="${t3}">—</text>
+<rect x="330" y="${ctaY + 32}" width="52" height="22" rx="11" fill="${navy3}" stroke="${t3}" stroke-width="1"/>
+<text x="356" y="${ctaY + 48}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="${t2}">?</text>
+<text x="446" y="${ctaY + 48}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="${teal}">→ Open the app to predict</text>
+
+<!-- Footer -->
+<line x1="40" y1="${footY}" x2="640" y2="${footY}" stroke="${t3}" stroke-width="0.5"/>
+<text x="40" y="${footY + 20}" font-family="system-ui,sans-serif" font-size="10" fill="${t3}">Predictions lock 1 hr before kickoff  ·  3 pts correct result  ·  6 pts exact score</text>
+<text x="640" y="${footY + 20}" text-anchor="end" font-family="system-ui,sans-serif" font-size="10" fill="${t3}">coevolve.com</text>
+<rect x="0" y="${totalH - 5}" width="680" height="5" fill="${teal}"/>
+</svg>`;
+}
+
+async function downloadMatchCard() {
+  const svgEl = document.querySelector('#card-svg-wrap svg');
+  if(!svgEl) { showToast('Generate a card first', true); return; }
+
+  const svgData  = new XMLSerializer().serializeToString(svgEl);
+  const svgBlob  = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+  const url      = URL.createObjectURL(svgBlob);
+
+  // Draw SVG to canvas, export as PNG
+  const img = new Image();
+  img.onload = () => {
+    const scale  = 2; // 2× for retina / high-res
+    const canvas = document.createElement('canvas');
+    const vb     = svgEl.viewBox.baseVal;
+    canvas.width  = vb.width  * scale;
+    canvas.height = vb.height * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+
+    const matchSel = document.getElementById('card-match-select');
+    const matchId  = matchSel?.value || 'match';
+    const match    = ALL_MATCHES.find(x => x.id === matchId);
+    const fname    = 'wc2026-' + (match ? match.home.replace(/\s+/g,'-').toLowerCase() + '-vs-' + match.away.replace(/\s+/g,'-').toLowerCase() : matchId) + '.png';
+
+    canvas.toBlob(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fname;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast('PNG downloaded ✓');
+    }, 'image/png');
+  };
+  img.onerror = () => {
+    // Fallback: download SVG directly
+    const a = document.createElement('a');
+    a.href = url; a.download = 'match-card.svg'; a.click();
+    URL.revokeObjectURL(url);
+    showToast('SVG downloaded (PNG unavailable in this browser)');
+  };
+  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+}
+
 </script>
 </body>
 </html>
