@@ -3293,7 +3293,10 @@ function renderPublicPage(){
       : `<span style="color:var(--t3);font-size:11px;">${m.round||'KO'}</span>`;
     const hFlag = m.hf && m.hf.length <= 4 ? `<span style="font-size:11px;color:var(--t3);margin-right:4px;">${m.hf}</span>` : (m.hf ? `<span style="margin-right:4px;">${m.hf}</span>` : '');
     const aFlag = m.af && m.af.length <= 4 ? `<span style="font-size:11px;color:var(--t3);margin-left:4px;">${m.af}</span>` : (m.af ? `<span style="margin-left:4px;">${m.af}</span>` : '');
-    tr.innerHTML=`<td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--t3);text-align:right;padding-right:8px;">${m.num}</td><td>${groupLabel}</td><td>${hFlag}${esc(m.home)}</td><td style="text-align:center;">${scoreCell}</td><td>${esc(m.away)}${aFlag}</td><td class="pub-date-cell">${fmtMatchTime(m.id)}</td>`;
+    const schedBt=bracketTeams[m.id]||{};
+    const schedHome=schedBt.home||(m.home!=='To be announced'?m.home:'TBD');
+    const schedAway=schedBt.away||(m.away!=='To be announced'?m.away:'TBD');
+    tr.innerHTML=`<td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--t3);text-align:right;padding-right:8px;">${m.num}</td><td>${groupLabel}</td><td>${hFlag}${esc(schedHome)}</td><td style="text-align:center;">${scoreCell}</td><td>${esc(schedAway)}${aFlag}</td><td class="pub-date-cell">${fmtMatchTime(m.id)}</td>`;
     schedTbody.appendChild(tr);
   });
   schedTable.appendChild(schedTbody);
