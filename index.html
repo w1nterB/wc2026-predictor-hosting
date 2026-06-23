@@ -3277,7 +3277,7 @@ function renderPublicPage(){
 
   const schedCard=document.createElement('div');schedCard.style.cssText='background:var(--card);border:1px solid var(--card-border);border-radius:12px;padding:14px;overflow-x:auto;';
   const schedTable=document.createElement('table');schedTable.className='pub-schedule-table';
-  schedTable.innerHTML=`<thead><tr><th>Group</th><th>Home</th><th style="text-align:center;">Score</th><th>Away</th><th>Kickoff (your time)</th></tr></thead>`;
+  schedTable.innerHTML=`<thead><tr><th style="color:var(--t3);width:36px;">#</th><th>Group</th><th>Home</th><th style="text-align:center;">Score</th><th>Away</th><th>Kickoff (your time)</th></tr></thead>`;
   const schedTbody=document.createElement('tbody');
   ALL_MATCHES.forEach(m=>{
         const tr=document.createElement('tr');tr.dataset.group=m.group||'';
@@ -3290,7 +3290,7 @@ function renderPublicPage(){
       : `<span style="color:var(--t3);font-size:11px;">${m.round||'KO'}</span>`;
     const hFlag = m.hf && m.hf.length <= 4 ? `<span style="font-size:11px;color:var(--t3);margin-right:4px;">${m.hf}</span>` : (m.hf ? `<span style="margin-right:4px;">${m.hf}</span>` : '');
     const aFlag = m.af && m.af.length <= 4 ? `<span style="font-size:11px;color:var(--t3);margin-left:4px;">${m.af}</span>` : (m.af ? `<span style="margin-left:4px;">${m.af}</span>` : '');
-    tr.innerHTML=`<td>${groupLabel}</td><td>${hFlag}${esc(m.home)}</td><td style="text-align:center;">${scoreCell}</td><td>${esc(m.away)}${aFlag}</td><td class="pub-date-cell">${fmtMatchTime(m.id)}</td>`;
+    tr.innerHTML=`<td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--t3);text-align:right;padding-right:8px;">${m.num}</td><td>${groupLabel}</td><td>${hFlag}${esc(m.home)}</td><td style="text-align:center;">${scoreCell}</td><td>${esc(m.away)}${aFlag}</td><td class="pub-date-cell">${fmtMatchTime(m.id)}</td>`;
     schedTbody.appendChild(tr);
   });
   schedTable.appendChild(schedTbody);
