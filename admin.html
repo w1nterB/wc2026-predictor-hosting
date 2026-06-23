@@ -1918,7 +1918,11 @@ function refreshMatchDropdown(){
     if(!o.value) return;
     const r = results[o.value];
     const m = ALL_MATCHES.find(x => x.id === o.value);
-    if(m) o.textContent = '#'+m.num+' · '+m.home+' vs '+m.away+' ('+(m.group||m.round)+')'+(r ? ' ✓' : '');
+    if(m) {
+      const bt = bracketTeams[m.id]||{};
+      const hN = bt.home||m.home; const aN = bt.away||m.away;
+      o.textContent = '#'+m.num+' · '+hN+' vs '+aN+' ('+(m.group||m.round)+')'+(r ? ' ✓' : '');
+    }
   });
   ams.value = cur;
 }
@@ -2394,6 +2398,7 @@ async function saveKoResult() {
 
   renderKoBracketList();
   renderBracket();
+  refreshMatchDropdown();
   showToast('Bracket updated ✓');
 }
 
@@ -2414,6 +2419,7 @@ async function deleteKoResult() {
   document.getElementById('ko-match-sel').value = '';
   renderKoBracketList();
   renderBracket();
+  refreshMatchDropdown();
   showToast('Bracket entry deleted');
 }
 
@@ -2723,7 +2729,11 @@ function refreshMatchDropdown(){
     if(!o.value) return;
     const r = results[o.value];
     const m = ALL_MATCHES.find(x => x.id === o.value);
-    if(m) o.textContent = '#'+m.num+' · '+m.home+' vs '+m.away+' ('+(m.group||m.round)+')'+(r ? ' ✓' : '');
+    if(m) {
+      const bt = bracketTeams[m.id]||{};
+      const hN = bt.home||m.home; const aN = bt.away||m.away;
+      o.textContent = '#'+m.num+' · '+hN+' vs '+aN+' ('+(m.group||m.round)+')'+(r ? ' ✓' : '');
+    }
   });
   ams.value = cur;
 }
@@ -2852,6 +2862,7 @@ async function saveKoResult() {
 
   renderKoBracketList();
   renderBracket();
+  refreshMatchDropdown();
   showToast('Bracket updated ✓');
 }
 async function deleteKoResult() {
@@ -2871,6 +2882,7 @@ async function deleteKoResult() {
   document.getElementById('ko-match-sel').value = '';
   renderKoBracketList();
   renderBracket();
+  refreshMatchDropdown();
   showToast('Bracket entry deleted');
 }
 function renderKoBracketAdmin() {
@@ -3340,7 +3352,9 @@ async function initAdmin() {
   if(ams){
     ams.innerHTML='<option value="">Select match…</option>';
     ALL_MATCHES.forEach(m=>{const o=document.createElement('option'),r=results[m.id];
-      o.value=m.id;o.textContent='#'+m.num+' · '+m.home+' vs '+m.away+' ('+(m.group||m.round)+')'+(r?' ✓':'');ams.appendChild(o);});
+      const bt=bracketTeams[m.id]||{};
+      const hName=bt.home||m.home; const aName=bt.away||m.away;
+      o.value=m.id;o.textContent='#'+m.num+' · '+hName+' vs '+aName+' ('+(m.group||m.round)+')'+(r?' ✓':'');ams.appendChild(o);});
     ams.addEventListener('change',function(){
       const id=this.value,area=document.getElementById('result-entry-area'),db=document.getElementById('delete-result-btn');
       if(!id){area.style.display='none';return;}
@@ -3540,8 +3554,7 @@ function buildMatchCardSVG(m, h2h, wins, draws, losses, dayStr, timeStr, tzShort
   }
 
   // CTA
-  const ctaY  = factYEnd + 12;
-  const footY = ctaY + 88;
+  const footY = factYEnd + 12;
   const totalH = footY + 40;
 
   return `<svg width="100%" viewBox="0 0 680 ${totalH}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
@@ -3598,15 +3611,6 @@ ${h2hRowsSVG}
 <!-- Fact -->
 ${factSVG}
 
-<!-- CTA strip -->
-<rect x="40" y="${ctaY}" width="600" height="62" rx="12" fill="${teal}" opacity="0.1" stroke="${teal}" stroke-width="1"/>
-<text x="340" y="${ctaY + 24}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" fill="${t2}">What&apos;s your prediction?</text>
-<rect x="210" y="${ctaY + 32}" width="52" height="22" rx="11" fill="${navy3}" stroke="${teal}" stroke-width="1"/>
-<text x="236" y="${ctaY + 48}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="${teal}">?</text>
-<text x="302" y="${ctaY + 48}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" fill="${t3}">—</text>
-<rect x="330" y="${ctaY + 32}" width="52" height="22" rx="11" fill="${navy3}" stroke="${t3}" stroke-width="1"/>
-<text x="356" y="${ctaY + 48}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="${t2}">?</text>
-<text x="446" y="${ctaY + 48}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="600" fill="${teal}">→ Open the app to predict</text>
 
 <!-- Footer -->
 <line x1="40" y1="${footY}" x2="640" y2="${footY}" stroke="${t3}" stroke-width="0.5"/>
