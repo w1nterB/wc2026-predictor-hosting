@@ -919,6 +919,11 @@ select.portal-input option{background:#fff;}
   border-radius:8px;padding:10px 14px;
   font-size:13px;
 }
+.entered-result-row.ko-match {
+  background:rgba(37,196,179,.06);
+  border-color:rgba(37,196,179,.3);
+  border-left:3px solid var(--teal);
+}
 .entered-result-main{display:grid;grid-template-columns:1fr auto 1fr 60px;align-items:center;gap:8px;}
 .entered-result-home { font-weight:600;color:var(--t1);text-align:right; }
 .entered-result-away { font-weight:600;color:var(--t1); }
@@ -2008,7 +2013,7 @@ function renderMatchResultsList() {
   entered.forEach(m => {
     const r = results[m.id];
     const row = document.createElement('div');
-    row.className = 'entered-result-row';
+    row.className = 'entered-result-row' + (!m.group ? ' ko-match' : '');
     const rBtm = bracketTeams[m.id]||{};
     const _hName1 = rBtm.home||m.home; const _aName1 = rBtm.away||m.away;
     const _winner1 = r.pen_winner==='home'?_hName1:r.pen_winner==='away'?_aName1:null;
@@ -2878,7 +2883,7 @@ function renderMatchResultsList() {
   entered.forEach(m => {
     const r = results[m.id];
     const row = document.createElement('div');
-    row.className = 'entered-result-row';
+    row.className = 'entered-result-row' + (!m.group ? ' ko-match' : '');
     const rBtm = bracketTeams[m.id]||{};
     const _hName1 = rBtm.home||m.home; const _aName1 = rBtm.away||m.away;
     const _winner1 = r.pen_winner==='home'?_hName1:r.pen_winner==='away'?_aName1:null;
