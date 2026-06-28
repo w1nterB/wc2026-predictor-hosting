@@ -343,6 +343,7 @@ select.portal-input option{background:#fff;}
 .team-flag{font-size:18px;line-height:1;}
 .match-meta{text-align:center;}
 .match-time{font-family:'DM Mono',monospace;font-size:14px;color:var(--t3);white-space:nowrap;}
+.match-round-badge{font-size:9px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--teal-mid);background:rgba(37,196,179,.1);border-radius:4px;padding:2px 6px;margin-bottom:3px;display:inline-block;}
 .match-vs{font-size:14px;font-weight:700;color:var(--t4);letter-spacing:1px;}
 .result-score{font-family:'DM Mono',monospace;font-size:20px;font-weight:600;color:var(--teal-mid);letter-spacing:2px;line-height:1;}
 .prediction-row{
@@ -1526,7 +1527,7 @@ async function loadAllFromSupabase() {
       sbFetch('users?select=name,fn,country&order=name'),
       sbFetch('results?select=match_id,home_score,away_score,pen_home,pen_away,pen_winner'),
       sbFetch('bracket?select=match_id,home_name,away_name,home_score,away_score'),
-      sbFetch('predictions?select=name,type,match_id,home_score,away_score,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
+      sbFetch('predictions?select=name,type,match_id,home_score,away_score,pen_winner,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
       sbFetch('matches?select=*&order=num'),
     ]);
     const participantRows = userRows;
@@ -1593,7 +1594,8 @@ async function loadAllFromSupabase() {
         } else if(row.type === 'match' && row.match_id) {
           predictions[row.name][row.match_id] = {
             home: row.home_score,
-            away: row.away_score
+            away: row.away_score,
+            pen_winner: row.pen_winner || null
           };
         }
       });
@@ -1893,9 +1895,21 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
   const card = document.createElement('div');
   card.className = `match-card${hr?' locked-card has-result':locked?' locked-card':''}`;
   card.id = `match-${m.id}`;
-  const scoreDisplay = hr
-    ? `<div class="result-score">${results[m.id].home} &ndash; ${results[m.id].away}</div>`
-    : `<div class="match-vs">VS</div>`;
+  // Round label for KO matches
+  const _rlMap = {'Round of 32':'ROUND OF 32','Round of 16':'ROUND OF 16','Quarter Finals':'QUARTER-FINAL','Semi Finals':'SEMI-FINAL','Finals':'FINAL'};
+  const roundLabel = (!m.group && _rlMap[m.round]) ? `<div class="match-round-badge">${_rlMap[m.round]}</div>` : '';
+
+  // Score display — pen-aware for KO matches
+  const scoreDisplay = (() => {
+    if(!hr) return '<div class="match-vs">VS</div>';
+    const _r = results[m.id];
+    let d = `<div class="result-score">${_r.home} &ndash; ${_r.away}</div>`;
+    if(_r.pen_winner) {
+      const _pw = _r.pen_winner==='home' ? (bracketTeams[m.id]?.home||m.home) : (bracketTeams[m.id]?.away||m.away);
+      d += `<div style="font-size:10px;color:var(--t3);text-align:center;">aet &middot; ${esc(_pw)} on pens</div>`;
+    }
+    return d;
+  })();
   // If match is locked by time (not result) and user has a saved prediction, show it
   const userPred = !hr && locked && currentUser && predictions[currentUser]?.[m.id];
   const timeStr = fmtMatchTime(m.id);
@@ -1907,7 +1921,7 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
   const bt = bracketTeams[m.id]||{};
   const dispHome = bt.home || (m.home !== 'To be announced' ? m.home : 'TBD');
   const dispAway = bt.away || (m.away !== 'To be announced' ? m.away : 'TBD');
-  card.innerHTML = `<div class="team-side"><span class="team-flag">${hf}</span><span class="team-name">${dispHome}${hStar}</span></div><div class="match-meta"><div class="match-time">${timeStr}</div>${scoreDisplay}</div><div class="team-side right"><span class="team-name">${dispAway}${aStar}</span><span class="team-flag">${af}</span></div><div class="prediction-row"><div class="score-input-wrap" style="justify-content:flex-start;"><label>${dispHome}</label><input class="score-input" id="h-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}></div><span class="score-sep">&ndash;</span><div class="score-input-wrap" style="justify-content:flex-end;"><input class="score-input" id="a-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}><label>${dispAway}</label></div><div class="match-save-status" id="save-${m.id}"></div></div>`;
+  card.innerHTML = `<div class="team-side"><span class="team-flag">${hf}</span><span class="team-name">${dispHome}${hStar}</span></div><div class="match-meta">${roundLabel}<div class="match-time">${timeStr}</div>${scoreDisplay}</div><div class="team-side right"><span class="team-name">${dispAway}${aStar}</span><span class="team-flag">${af}</span></div><div class="prediction-row"><div class="score-input-wrap" style="justify-content:flex-start;"><label>${dispHome}</label><input class="score-input" id="h-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}></div><span class="score-sep">&ndash;</span><div class="score-input-wrap" style="justify-content:flex-end;"><input class="score-input" id="a-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}><label>${dispAway}</label></div><div class="match-save-status" id="save-${m.id}"></div></div>`;
   // Populate saved prediction immediately — avoids debounce timing issues
   if(currentUser && predictions[currentUser]?.[m.id]) {
     const saved = predictions[currentUser][m.id];
@@ -3873,10 +3887,12 @@ function buildPreviewPanel(matchId) {
         body.appendChild(f);
       }
       if(data.stat) {
-        const s = document.createElement('div');
-        s.className = 'preview-stat-pill';
-        s.innerHTML = '📊 ' + esc(data.stat);
-        body.appendChild(s);
+        const statWrap = document.createElement('div');
+        statWrap.style.cssText = 'margin-top:10px;padding:10px 12px;background:rgba(37,196,179,.06);border:1px solid rgba(37,196,179,.2);border-radius:8px;border-left:3px solid var(--teal);';
+        statWrap.innerHTML =
+          '<div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--teal-mid);margin-bottom:5px;">⚽ WC2026 — GROUP STAGE</div>' +
+          '<div style="font-size:12px;color:var(--t2);line-height:1.7;">' + esc(data.stat) + '</div>';
+        body.appendChild(statWrap);
       }
     } catch(e) {
       body.innerHTML = '<div style="padding:10px;color:var(--t3);font-size:12px;">Preview unavailable.</div>';
