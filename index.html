@@ -2627,6 +2627,10 @@ function loadPredictions(name){
       input.value = pr.home;
       const away = document.getElementById('a-'+matchId);
       if(away && pr.away !== undefined) away.value = pr.away;
+      const pen = document.getElementById('pen-winner-'+matchId);
+      const penWrap = document.getElementById('pen-wrap-'+matchId);
+      if(pen) pen.value = pr.pen_winner || '';
+      if(penWrap) penWrap.style.display = Number(pr.home) === Number(pr.away) ? 'block' : 'none';
     }
   });
   updateSubmitState();
@@ -2711,9 +2715,11 @@ function countUnsavedPredictions(name) {
     if(!matchId || results[matchId] || isMatchLocked(matchId)) return;
     const h = document.getElementById('h-'+matchId)?.value;
     const a = document.getElementById('a-'+matchId)?.value;
+    const pen = document.getElementById('pen-winner-'+matchId)?.value || '';
     if(h === '' && a === '') return;
     const old = saved[matchId];
-    if(!old || Number(h) !== Number(old.home) || Number(a) !== Number(old.away)) count++;
+    const penChanged = Number(h) === Number(a) && pen !== (old?.pen_winner || '');
+    if(!old || Number(h) !== Number(old.home) || Number(a) !== Number(old.away) || penChanged) count++;
   });
   return count;
 }
@@ -2732,6 +2738,7 @@ function updateMatchSaveStatuses() {
     if(results[matchId] || isMatchLocked(matchId)) return;
     const h = document.getElementById('h-'+matchId)?.value;
     const a = document.getElementById('a-'+matchId)?.value;
+    const pen = document.getElementById('pen-winner-'+matchId)?.value || '';
     const old = saved[matchId];
     if(h === '' && a === '') return;
     if(h === '' || a === '') {
@@ -2739,7 +2746,8 @@ function updateMatchSaveStatuses() {
       status.classList.add('partial');
       return;
     }
-    if(old && Number(h) === Number(old.home) && Number(a) === Number(old.away)) {
+    const penMatches = Number(h) !== Number(a) || pen === (old?.pen_winner || '');
+    if(old && Number(h) === Number(old.home) && Number(a) === Number(old.away) && penMatches) {
       status.textContent = '✓ Saved';
       status.classList.add('saved');
       card.classList.add('saved-card');
@@ -2779,10 +2787,10 @@ function updateSubmitState() {
 
 function wirePredictionChangeTracking() {
   document.addEventListener('input', e => {
-    if(e.target?.classList?.contains('score-input') || e.target?.id?.startsWith('s-')) updateSubmitState();
+    if(e.target?.classList?.contains('score-input') || e.target?.id?.startsWith('s-') || e.target?.id?.startsWith('pen-winner-')) updateSubmitState();
   });
   document.addEventListener('change', e => {
-    if(e.target?.classList?.contains('score-input') || e.target?.id?.startsWith('s-')) updateSubmitState();
+    if(e.target?.classList?.contains('score-input') || e.target?.id?.startsWith('s-') || e.target?.id?.startsWith('pen-winner-')) updateSubmitState();
   });
 }
 
