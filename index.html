@@ -1504,16 +1504,12 @@ async function sbFetch(path, opts = {}) {
     'Content-Type':  'application/json',
     'Prefer':        opts.prefer || (isGet ? 'return=representation' : 'return=minimal'),
   };
-  // Only add Range headers on GET — sending them on POST/PATCH causes 416 errors
-  if(isGet) {
-    headers['Range-Unit'] = 'items';
-    headers['Range']      = opts.range || '0-9999';
-  }
+  if(isGet) { headers['Range-Unit'] = 'items'; headers['Range'] = opts.range || '0-9999'; }
   try {
     const res = await fetch(url, {
       method,
       headers: { ...headers, ...(opts.headers || {}) },
-      body:    opts.body ? JSON.stringify(opts.body) : undefined,
+      body:    opts.body    ? JSON.stringify(opts.body) : undefined,
     });
     const text = await res.text();
     if(!res.ok) {
@@ -1526,7 +1522,9 @@ async function sbFetch(path, opts = {}) {
         } catch(e) {}
         throw new Error(detail || ('Supabase request failed: ' + res.status));
       }
+      console.error('Supabase error', res.status, text);
     }
+    // Return parsed JSON whenever we have a body (GET or POST with return=representation)
     if(text) {
       try { return JSON.parse(text); } catch(e) {}
     }
@@ -1565,7 +1563,7 @@ async function loadAllFromSupabase() {
       sbFetch('users?select=name,fn,country&order=name'),
       sbFetch('results?select=match_id,home_score,away_score,pen_home,pen_away,pen_winner'),
       sbFetch('bracket?select=match_id,home_name,away_name,home_score,away_score'),
-      sbFetch('predictions?select=name,type,match_id,home_score,away_score,pen_winner,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
+      sbFetch('predictions?select=name,type,match_id,home_score,away_score,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
       sbFetch('matches?select=*&order=num'),
     ]);
     const participantRows = userRows;
@@ -1605,7 +1603,8 @@ async function loadAllFromSupabase() {
     // Apply results
     if(Array.isArray(resultRows)) {
       resultRows.forEach(r => {
-        results[r.match_id] = { home: r.home_score, away: r.away_score, pen_home: r.pen_home??null, pen_away: r.pen_away??null, pen_winner: r.pen_winner??null };
+        results[r.match_id] = { home: r.home_score, away: r.away_score,
+          pen_home: r.pen_home??null, pen_away: r.pen_away??null, pen_winner: r.pen_winner??null };
       });
     }
 
@@ -1686,7 +1685,6 @@ async function postToSheet(payload) {
     sf2: payload.sf2 || null,
     sf3: payload.sf3 || null,
     sf4: payload.sf4 || null,
-    pen_winner: payload.penWinner || null,
   };
   // Write directly to Supabase — no callSheet, no Google Sheets
   const result = await sbFetch('predictions?on_conflict=name,type,match_id', {
@@ -1854,8 +1852,6 @@ const COUNTRIES = {
 };
 
 let participants = [];
-
-// Function assignments — keyed by name, loaded from Supabase
 let participantFunctions = {};
 let participantCountries = {}; // keyed by name → country code
 
@@ -1963,26 +1959,22 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
   const card = document.createElement('div');
   card.className = `match-card${hr?' locked-card has-result':locked?' locked-card':''}`;
   card.id = `match-${m.id}`;
-  // Round label for KO matches
-  const _rlMap = {'Round of 32':'ROUND OF 32','Round of 16':'ROUND OF 16','Quarter Finals':'QUARTER-FINAL','Semi Finals':'SEMI-FINAL','Finals':'FINAL'};
-  const roundLabel = (!m.group && _rlMap[m.round]) ? `<div class="match-round-badge">${_rlMap[m.round]}</div>` : '';
-
-  // Score display — pen-aware for KO matches
-  const scoreDisplay = (() => {
-    if(!hr) return '<div class="match-vs">VS</div>';
-    const _r = results[m.id];
-    let d = `<div class="result-score">${_r.home} &ndash; ${_r.away}</div>`;
-    if(_r.pen_winner) {
-      const _pw = _r.pen_winner==='home' ? (bracketTeams[m.id]?.home||m.home) : (bracketTeams[m.id]?.away||m.away);
-      d += `<div style="font-size:10px;color:var(--t3);text-align:center;">aet &middot; ${esc(_pw)} on pens</div>`;
-    }
-    return d;
-  })();
   const currentUser = document.getElementById('participant-select')?.value;
   const timeStr = fmtMatchTime(m.id);
-  const userWinner = currentUser && predictions[currentUser]?.specials?.winner;
+  // Score display — pen-aware
+  const scoreDisplay = (() => {
+    if(!hr) return '<div class="match-vs">VS</div>';
+    const _r=results[m.id];
+    let d=`<div class="result-score">${_r.home} &ndash; ${_r.away}</div>`;
+    if(_r.pen_winner){const _pw=_r.pen_winner==='home'?(bracketTeams[m.id]?.home||m.home):(bracketTeams[m.id]?.away||m.away);d+=`<div style="font-size:10px;color:var(--t3);text-align:center;">aet &middot; ${esc(_pw)} on pens</div>`;}
+    return d;
+  })();
+  // KO round label
+  const _rlMap={'Round of 32':'ROUND OF 32','Round of 16':'ROUND OF 16','Quarter Finals':'QUARTER-FINAL','Semi Finals':'SEMI-FINAL','Finals':'FINAL'};
+  const roundLabel=(!m.group&&_rlMap[m.round])?`<div class="match-round-badge">${_rlMap[m.round]}</div>`:'';
   // If match is locked by time (not result) and user has a saved prediction, show it
   const userPred = !hr && locked && currentUser && predictions[currentUser]?.[m.id];
+  const userWinner = currentUser && predictions[currentUser]?.specials?.winner;
   const hStar = userWinner===m.home ? `<span class="winner-star" title="Your predicted winner">★</span>` : '';
   const aStar = userWinner===m.away ? `<span class="winner-star" title="Your predicted winner">★</span>` : '';
   const hf = m.hf||''; const af = m.af||'';
@@ -1998,37 +1990,25 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
     if(hIn && saved.home !== undefined) { hIn.value = saved.home; }
     if(aIn && saved.away !== undefined) { aIn.value = saved.away; }
   }
-  // Pen winner picker for KO matches — shows when user predicts a draw
-  if(!locked && !m.group) {
-    const penWrap = document.createElement('div');
-    penWrap.id = 'pen-wrap-' + m.id;
-    penWrap.style.cssText = 'margin-top:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:none;';
-    penWrap.innerHTML =
-      '<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;margin-bottom:6px;">IF DRAW AFTER 90 MINS — WHO WINS ON PENS?</div>' +
-      '<select id="pen-winner-' + m.id + '" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--page);font-size:13px;color:var(--t1);">' +
-        '<option value="">— Select pen winner —</option>' +
-        '<option value="home">' + esc(dispHome) + '</option>' +
-        '<option value="away">' + esc(dispAway) + '</option>' +
+  // Pen winner picker for KO matches
+  if(!locked && !m.group){
+    const penWrap=document.createElement('div');
+    penWrap.id='pen-wrap-'+m.id;
+    penWrap.style.cssText='margin-top:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:none;';
+    penWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;margin-bottom:6px;">IF DRAW AFTER 90 MINS — WHO WINS ON PENS?</div>'+
+      '<select id="pen-winner-'+m.id+'" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--page);font-size:13px;color:var(--t1);">'+
+      '<option value="">— Select pen winner —</option>'+
+      '<option value="home">'+esc(dispHome)+'</option>'+
+      '<option value="away">'+esc(dispAway)+'</option>'+
       '</select>';
     card.appendChild(penWrap);
-    const _sp = () => {
-      const hv = parseInt(card.querySelector('#h-' + m.id)?.value);
-      const av = parseInt(card.querySelector('#a-' + m.id)?.value);
-      penWrap.style.display = (!isNaN(hv) && !isNaN(av) && hv === av) ? 'block' : 'none';
-    };
-    card.querySelector('#h-' + m.id)?.addEventListener('input', _sp);
-    card.querySelector('#a-' + m.id)?.addEventListener('input', _sp);
-    // Restore saved pen winner and show picker if draw was predicted
-    const _sp2 = currentUser && predictions[currentUser]?.[m.id];
-    if(_sp2 && _sp2.pen_winner) {
-      const _ps = penWrap.querySelector('select');
-      if(_ps) _ps.value = _sp2.pen_winner;
-    }
-    if(_sp2 && _sp2.home !== undefined && _sp2.home === _sp2.away) {
-      penWrap.style.display = 'block';
-    }
+    const _sp=()=>{const hv=parseInt(card.querySelector('#h-'+m.id)?.value);const av=parseInt(card.querySelector('#a-'+m.id)?.value);penWrap.style.display=(!isNaN(hv)&&!isNaN(av)&&hv===av)?'block':'none';};
+    card.querySelector('#h-'+m.id)?.addEventListener('input',_sp);
+    card.querySelector('#a-'+m.id)?.addEventListener('input',_sp);
+    const _sp2=currentUser&&predictions[currentUser]?.[m.id];
+    if(_sp2&&_sp2.pen_winner){const _ps=penWrap.querySelector('select');if(_ps)_ps.value=_sp2.pen_winner;}
+    if(_sp2&&_sp2.home!==undefined&&_sp2.home===_sp2.away){penWrap.style.display='block';}
   }
-
   // Add preview panel for all rounds (group + knockout)
   if(!skipPreview) {
     const preview = buildPreviewPanel(m.id);
@@ -2126,8 +2106,8 @@ function renderMatches(){
   }
 
   // Re-populate predictions now that cards are in DOM
-  const _cu = document.getElementById('participant-select')?.value;
-  if(_cu && predictions[_cu]) loadPredictions(_cu);
+  const _rcu = document.getElementById('participant-select')?.value;
+  if(_rcu && predictions[_rcu]) loadPredictions(_rcu);
 
   /* ── VIEW ALL ── */
   if(completedMatches.length > 0) {
@@ -2869,10 +2849,7 @@ async function submitPredictions(){
     if(h&&a&&h.value!==''&&a.value!==''){
       const hp=parseInt(h.value),ap=parseInt(a.value);
       const pred={home:hp,away:ap};
-      if(!m.group&&hp===ap){
-        const ps=document.getElementById('pen-winner-'+m.id);
-        if(ps&&ps.value) pred.pen_winner=ps.value;
-      }
+      if(!m.group&&hp===ap){const ps=document.getElementById('pen-winner-'+m.id);if(ps&&ps.value)pred.pen_winner=ps.value;}
       matchPreds[m.id]=pred;
       predictions[name][m.id]=matchPreds[m.id];
     }
@@ -2982,14 +2959,24 @@ function saveSheetUrl(){
 function toggleInstr(){const b=document.getElementById('instr-body'),t=document.getElementById('instr-toggle');const s=b.style.display!=='none';b.style.display=s?'none':'block';t.textContent=s?'Show setup guide':'Hide setup guide';}
 
 function res(h,a){return h>a?'H':a>h?'A':'D';}
-function scoreMatch(pred,actual){return scoreMatchBreakdown(pred,actual).total;}
+function scoreMatch(pred,actual){
+  if(!pred||!actual) return 0;
+  let pts=0;
+  // Result: correct W/D/L = 3pts
+  if(res(pred.home,pred.away)===res(actual.home,actual.away)) pts+=3;
+  // Score: one team correct = 3pts, both teams correct = 6pts
+  const homeHit = pred.home===actual.home;
+  const awayHit = pred.away===actual.away;
+  if(homeHit && awayHit) pts+=6;      // exact score: +6
+  else if(homeHit || awayHit) pts+=3; // one team correct: +3
+  return pts;
+}
 function scoreMatchBreakdown(pred,actual){
   if(!pred||!actual) return {result:0,score:0,total:0};
   const homeHit=pred.home===actual.home, awayHit=pred.away===actual.away;
   const score=(homeHit&&awayHit)?6:(homeHit||awayHit)?3:0;
   let result=0;
   if(actual.pen_winner){
-    // KO draw went to pens: result pts only if predicted draw AND correct pen winner
     if(res(pred.home,pred.away)==='D' && pred.pen_winner && pred.pen_winner===actual.pen_winner) result=3;
   } else {
     result=res(pred.home,pred.away)===res(actual.home,actual.away)?3:0;
@@ -3032,9 +3019,10 @@ function renderDashboard(){
   const hasSpecials = Object.keys(specialsActual).some(k=>specialsActual[k]);
   c.innerHTML = '';
 
+  // ── TAB BAR ──
   const tabs = document.createElement('div'); tabs.className = 'dash-tabs';
   const panes = {};
-  [['lb','\uD83C\uDFC6 Leaderboard'],['fn','By Function'],['cty','By Country']].forEach(([id,label],i)=>{
+  [['lb','🏆 Leaderboard'],['fn','By Function'],['cty','By Country']].forEach(([id,label],i)=>{
     const btn = document.createElement('button'); btn.className='dash-tab'+(i===0?' active':'');
     btn.textContent = label;
     btn.onclick = () => {
@@ -3046,76 +3034,159 @@ function renderDashboard(){
     tabs.appendChild(btn);
   });
   c.appendChild(tabs);
+
   ['lb','fn','cty'].forEach((id,i)=>{
     const pane = document.createElement('div'); pane.className='dash-pane'+(i===0?' active':'');
     panes[id] = pane; c.appendChild(pane);
   });
 
+  // ══ LEADERBOARD PANE ══
   const lbPane = panes['lb'];
+
+  // Summary
   const summary = document.createElement('p');
   summary.style.cssText = 'font-size:12px;color:var(--t3);margin:0 0 14px;';
   summary.textContent = ranked.length + ' player' + (ranked.length!==1?'s':'') +
-    ' \u00b7 ' + played + ' result' + (played!==1?'s':'') + ' in' +
-    (hasSpecials ? ' \u00b7 specials scored' : '');
+    ' · ' + played + ' result' + (played!==1?'s':'') + ' in' +
+    (hasSpecials ? ' · specials scored' : '');
   lbPane.appendChild(summary);
 
+  // Dashboard highlights — restored without changing the existing CSS/look
+  const highlights = document.createElement('div');
+  highlights.className = 'fun-stat-grid';
+  highlights.style.marginBottom = '16px';
+
+  const tableTopper = ranked[0];
+  const leadingFn = Object.entries(FUNCTIONS).map(([key,f]) => {
+    const names = participants.filter(n => participantFunctions[n] === key);
+    const total = names.reduce((sum,n) => sum + (scores[n]?.total || 0), 0);
+    const avg = names.length ? total / names.length : 0;
+    return { key, f, names, total, avg };
+  }).filter(x => x.names.length).sort((a,b) => b.avg - a.avg)[0];
+
+  const leadingCty = Object.entries(COUNTRIES).map(([key,ct]) => {
+    const names = participants.filter(n => participantCountries[n] === key);
+    const total = names.reduce((sum,n) => sum + (scores[n]?.total || 0), 0);
+    const avg = names.length ? total / names.length : 0;
+    return { key, ct, names, total, avg };
+  }).filter(x => x.names.length).sort((a,b) => b.avg - a.avg)[0];
+
+  const oracleNow = ranked.slice().sort((a,b)=>(b[1].exact||0)-(a[1].exact||0))[0];
+
+  highlights.innerHTML = `
+    <div class="fun-stat-card">
+      <div class="fun-stat-emoji">🏅</div>
+      <div class="fun-stat-label">Table Topper</div>
+      <div class="fun-stat-name">${tableTopper ? esc(tableTopper[0]) : 'TBD'}</div>
+      <div class="fun-stat-sub">${tableTopper ? tableTopper[1].total + ' pts' : ''}</div>
+    </div>
+    <div class="fun-stat-card">
+      <div class="fun-stat-emoji">🏢</div>
+      <div class="fun-stat-label">Leading Function</div>
+      <div class="fun-stat-name">${leadingFn ? leadingFn.f.label : 'TBD'}</div>
+      <div class="fun-stat-sub">${leadingFn ? leadingFn.avg.toFixed(1) + ' avg pts' : ''}</div>
+    </div>
+    <div class="fun-stat-card">
+      <div class="fun-stat-emoji">🌏</div>
+      <div class="fun-stat-label">Leading Country</div>
+      <div class="fun-stat-name">${leadingCty ? leadingCty.ct.label : 'TBD'}</div>
+      <div class="fun-stat-sub">${leadingCty ? leadingCty.avg.toFixed(1) + ' avg pts' : ''}</div>
+    </div>
+    <div class="fun-stat-card">
+      <div class="fun-stat-emoji">🔮</div>
+      <div class="fun-stat-label">The Oracle</div>
+      <div class="fun-stat-name">${oracleNow && oracleNow[1].exact > 0 ? esc(oracleNow[0]) : 'TBD'}</div>
+      <div class="fun-stat-sub">${oracleNow && oracleNow[1].exact > 0 ? oracleNow[1].exact + ' exact scores' : 'Most exact scores'}</div>
+    </div>`;
+
+  // On Fire — computed separately and appended
+  const lastMsH = ALL_MATCHES.filter(m => results[m.id]).slice(-3);
+  const recentPtsH = {};
+  participants.forEach(n => {
+    recentPtsH[n] = lastMsH.reduce((sum, m) => sum + scoreMatch((predictions[n]||{})[m.id], results[m.id]), 0);
+  });
+  const hotNow = Object.entries(recentPtsH).sort((a,b) => b[1]-a[1])[0];
+  const onFireCard = document.createElement('div'); onFireCard.className = 'fun-stat-card';
+  onFireCard.innerHTML =
+    '<div class="fun-stat-emoji">🔥</div>' +
+    '<div class="fun-stat-label">On Fire</div>' +
+    '<div class="fun-stat-sub" style="font-size:10px;color:var(--t3);margin-bottom:4px;">Last 3 matches</div>' +
+    '<div class="fun-stat-name">' + (hotNow && hotNow[1]>0 ? esc(hotNow[0]) : 'TBD') + '</div>' +
+    '<div class="fun-stat-sub">' + (hotNow && hotNow[1]>0 ? hotNow[1]+' pts' : '') + '</div>';
+  highlights.appendChild(onFireCard);
+  lbPane.appendChild(highlights);
+
+  // Dynamic grid columns — full words, generous spacing
+  const dynStyle = (() => {
+    let s = document.getElementById('lb-dyn-style');
+    if(!s){ s = document.createElement('style'); s.id='lb-dyn-style'; document.head.appendChild(s); }
+    return s;
+  })();
+  dynStyle.textContent = hasSpecials
+    ? '.lb-header-row,.lb-data-row{grid-template-columns:44px 1fr 90px 90px 90px 110px 70px !important;}'
+    : '.lb-header-row,.lb-data-row{grid-template-columns:44px 1fr 100px 120px 80px 80px !important;}';
+
   const tbl = document.createElement('div'); tbl.className = 'lb-table-wrap';
+
+  // Header
   const hdr = document.createElement('div'); hdr.className = 'lb-header-row';
   hdr.innerHTML = '<span>#</span><span>Player</span>' +
     (hasSpecials
-      ? '<span style="text-align:right">Match</span><span style="text-align:right">+Spec</span>'
-      : '<span style="text-align:right">Pts</span><span></span>') +
-    '<span style="text-align:right">Pred</span><span style="text-align:right">Exact</span>';
+      ? '<span style="text-align:right">Match pts</span><span style="text-align:right">Specials</span><span style="text-align:right">Total</span>'
+      : '<span style="text-align:right">Total pts</span>') +
+    '<span style="text-align:right">Predicted</span>' +
+    '<span style="text-align:right">Exact</span>' +
+    (hasSpecials ? '' : '<span style="text-align:right">Missed</span>');
   tbl.appendChild(hdr);
 
-  ranked.forEach(([name,s],i)=>{
+  ranked.forEach(([name,s],i) => {
     const rankClass = i===0?'gold':i===1?'silver':i===2?'bronze':'';
     const matchPts  = s.total - s.specials;
     const predicted = s.predicted || 0;
     const played_p  = s.played    || 0;
     const missed    = s.missed    || 0;
-    const rankLabel = i===0?'#1':i===1?'#2':i===2?'#3':'#'+(i+1);
+    const predStr   = played_p > 0 ? predicted + ' / ' + played_p : '—';
+    const rankLabel = i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1);
+
     const fnKey  = participantFunctions[name];
     const fnObj  = fnKey && FUNCTIONS[fnKey] ? FUNCTIONS[fnKey] : null;
-    const fnHtml = fnObj ? '<span class="fn-badge '+fnObj.cls+'" style="font-size:9px;">'+fnObj.label+'</span>' : '';
-    const predStr = played_p > 0 ? predicted+' / '+played_p : '\u2014';
-    const missedHtml = missed > 0 ? ' <span style="color:var(--red-dk);font-size:10px;">'+missed+' missed</span>' : '';
+    const fnHtml = fnObj
+      ? '<span class="fn-badge ' + fnObj.cls + '" style="font-size:9px;">' + fnObj.label + '</span>'
+      : '';
 
     const row = document.createElement('div');
     row.className = 'lb-data-row' + (rankClass ? ' rank-'+(i+1) : '');
     row.innerHTML =
-      '<div class="lb-rank-cell '+rankClass+'">'+rankLabel+'</div>' +
-      '<div class="lb-name-cell"><div class="name">'+esc(name)+'</div><div class="badge">'+fnHtml+'</div></div>' +
+      '<div class="lb-rank-cell ' + rankClass + '">' + rankLabel + '</div>' +
+      '<div class="lb-name-cell"><div class="name">' + esc(name) + '</div><div class="badge">' + fnHtml + '</div></div>' +
       (hasSpecials
-        ? '<div class="lb-pts-cell">'+matchPts+'</div><div class="lb-stat-cell" style="color:var(--amber-dk);">'+(s.specials>0?'+'+s.specials:'\u2014')+'<span class="sub" style="color:var(--t3);">total '+s.total+'</span></div>'
-        : '<div class="lb-pts-cell" style="grid-column:span 2">'+s.total+'</div>') +
-      '<div class="lb-stat-cell">'+predStr+missedHtml+'</div>' +
-      '<div class="lb-stat-cell">'+s.exact+'</div>';
+        ? '<div class="lb-stat-cell">' + matchPts + '</div>' +
+          '<div class="lb-stat-cell" style="color:var(--amber-dk);">' + (s.specials>0?'+'+s.specials:'—') + '</div>' +
+          '<div class="lb-pts-cell">' + s.total + '</div>'
+        : '<div class="lb-pts-cell">' + s.total + '</div>') +
+      '<div class="lb-stat-cell">' + predStr + '</div>' +
+      '<div class="lb-stat-cell">' + s.exact + '</div>' +
+      (hasSpecials ? '' :
+        '<div class="lb-stat-cell">' +
+          (missed > 0
+            ? '<span style="color:var(--red-dk);">' + missed + '</span>'
+            : '<span style="color:var(--teal-mid);">✓</span>') +
+        '</div>');
 
     const barPct = maxPts ? ((s.total/maxPts)*100).toFixed(1) : 0;
     const barRow = document.createElement('div');
     barRow.style.cssText = 'padding:0 12px 10px;border-bottom:1px solid var(--border);';
-    barRow.innerHTML = '<div class="lb-bar-bg" style="margin-left:44px;"><div class="lb-bar-fg" style="width:'+barPct+'%"></div></div>';
+    barRow.innerHTML = '<div class="lb-bar-bg" style="margin-left:44px;"><div class="lb-bar-fg" style="width:' + barPct + '%"></div></div>';
+
     tbl.appendChild(row);
     tbl.appendChild(barRow);
   });
   lbPane.appendChild(tbl);
 
-  const funCard = document.createElement('div'); funCard.className = 'dash-card'; funCard.style.marginTop='16px';
-  funCard.innerHTML = '<h3 style="margin:0 0 12px;">Fun stats</h3>';
-  const funGrid = document.createElement('div'); funGrid.className = 'fun-stat-grid';
-  const topTipper = ranked[0];
-  funGrid.innerHTML += '<div class="fun-stat-card"><div class="fun-stat-emoji">\uD83C\uDFAF</div><div class="fun-stat-label">Table Topper</div><div class="fun-stat-name">'+(topTipper?esc(topTipper[0]):'TBD')+'</div><div class="fun-stat-sub">'+(topTipper?topTipper[1].total+' pts':'')+'</div></div>';
-  const oracle = ranked.slice().sort((a,b)=>b[1].exact-a[1].exact)[0];
-  funGrid.innerHTML += '<div class="fun-stat-card"><div class="fun-stat-emoji">\u{1F52E}</div><div class="fun-stat-label">The Oracle</div><div class="fun-stat-name">'+(oracle&&oracle[1].exact>0?esc(oracle[0]):'TBD')+'</div><div class="fun-stat-sub">'+(oracle&&oracle[1].exact>0?oracle[1].exact+' exact scores':'Most exact scores')+'</div></div>';
-  const lastMs=ALL_MATCHES.filter(m=>results[m.id]).slice(-3);
-  const recentPts={};
-  participants.forEach(n=>{recentPts[n]=lastMs.reduce((sum,m)=>sum+scoreMatch((predictions[n]||{})[m.id],results[m.id]),0);});
-  const hotStreak=Object.entries(recentPts).sort((a,b)=>b[1]-a[1])[0];
-  funGrid.innerHTML += '<div class="fun-stat-card"><div class="fun-stat-emoji">\u{1F525}</div><div class="fun-stat-label">On Fire</div><div class="fun-stat-sub" style="font-size:10px;color:var(--t3);margin-bottom:4px;">Last 3 matches</div><div class="fun-stat-name">'+(hotStreak&&hotStreak[1]>0?esc(hotStreak[0]):'TBD')+'</div><div class="fun-stat-sub">'+(hotStreak&&hotStreak[1]>0?hotStreak[1]+' pts':'')+'</div></div>';
-  funCard.appendChild(funGrid);
-  lbPane.appendChild(funCard);
 
+  // Fun stats moved to top highlights section
+
+  // ══ BY FUNCTION PANE ══
   const fnPane = panes['fn'];
   const fnScores={};
   Object.entries(FUNCTIONS).forEach(([key])=>{fnScores[key]={total:0,count:0};});
@@ -3126,34 +3197,35 @@ function renderDashboard(){
     fnScores[fnKey].count++;
   });
   const fnEntries=Object.entries(FUNCTIONS).map(([key,f])=>{
-    const avg=fnScores[key].count>0?(fnScores[key].total/fnScores[key].count).toFixed(1):'\u2014';
+    const avg=fnScores[key].count>0?(fnScores[key].total/fnScores[key].count).toFixed(1):'—';
     return {key,f,avg,total:fnScores[key].total,count:fnScores[key].count};
-  }).sort((a,b)=>(parseFloat(b.avg)||0)-(parseFloat(a.avg)||0));
+  }).sort((a,b)=>b.total-a.total);
   const maxFnTotal=Math.max(...fnEntries.map(e=>e.total),1);
   fnEntries.forEach(({key,f,avg,total,count})=>{
     if(count===0)return;
     const pct=Math.round((total/maxFnTotal)*100);
     const row=document.createElement('div');row.className='group-stat-row';
     row.innerHTML=
-      '<div style="width:32px;height:32px;border-radius:8px;background:'+f.color+'22;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+
-        '<span class="fn-badge '+f.cls+'" style="font-size:9px;border-radius:4px;">'+f.label.split(' ')[0]+'</span>'+
-      '</div>'+
-      '<div class="group-stat-info">'+
-        '<div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:4px;">'+f.label+'</div>'+
-        '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">'+
-          '<div style="height:100%;width:'+pct+'%;background:'+f.color+';border-radius:3px;transition:width .5s;"></div>'+
-        '</div>'+
-      '</div>'+
-      '<div class="group-stat-nums">'+
-        '<div class="group-stat-total">'+total+'</div>'+
-        '<div class="group-stat-meta">'+avg+' avg \u00b7 '+count+' player'+(count!==1?'s':'')+'</div>'+
-      '</div>';
+      `<div style="width:32px;height:32px;border-radius:8px;background:${f.color}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;">` +
+        `<span class="fn-badge ${f.cls}" style="font-size:9px;border-radius:4px;">${f.label.split(' ')[0]}</span>` +
+      `</div>` +
+      `<div class="group-stat-info">` +
+        `<div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:4px;">${f.label}</div>` +
+        `<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">` +
+          `<div style="height:100%;width:${pct}%;background:${f.color};border-radius:3px;transition:width .5s;"></div>` +
+        `</div>` +
+      `</div>` +
+      `<div class="group-stat-nums">` +
+        `<div class="group-stat-total">${total}</div>` +
+        `<div class="group-stat-meta">${avg} avg · ${count} player${count!==1?'s':''}</div>` +
+      `</div>`;
     fnPane.appendChild(row);
   });
   if(!fnPane.querySelector('.group-stat-row')){
-    fnPane.innerHTML='<p style="color:var(--t3);font-size:13px;padding:12px 0;">No data yet.</p>';
+    fnPane.innerHTML='<p style="color:var(--t3);font-size:13px;padding:12px 0;">No data yet — players need to register their function.</p>';
   }
 
+  // ══ BY COUNTRY PANE ══
   const ctyPane = panes['cty'];
   const ctyScores={};
   Object.entries(COUNTRIES).forEach(([key])=>{ctyScores[key]={total:0,count:0};});
@@ -3164,32 +3236,40 @@ function renderDashboard(){
     ctyScores[ctyKey].count++;
   });
   const ctyEntries=Object.entries(COUNTRIES).map(([key,ct])=>{
-    const avg=ctyScores[key].count>0?(ctyScores[key].total/ctyScores[key].count).toFixed(1):'\u2014';
+    const avg=ctyScores[key].count>0?(ctyScores[key].total/ctyScores[key].count).toFixed(1):'—';
     return {key,ct,avg,total:ctyScores[key].total,count:ctyScores[key].count};
-  }).sort((a,b)=>(parseFloat(b.avg)||0)-(parseFloat(a.avg)||0));
+  }).sort((a,b)=>b.total-a.total);
   const maxCtyTotal=Math.max(...ctyEntries.map(e=>e.total),1);
   ctyEntries.forEach(({key,ct,avg,total,count})=>{
     if(count===0)return;
     const pct=Math.round((total/maxCtyTotal)*100);
     const row=document.createElement('div');row.className='group-stat-row';
     row.innerHTML=
-      '<div style="width:32px;height:32px;border-radius:8px;background:'+ct.color+'22;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;">\uD83C\uDF0F</div>'+
-      '<div class="group-stat-info">'+
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'+
-          '<span class="fn-badge '+ct.cls+'" style="font-size:10px;">'+ct.label+'</span>'+
-        '</div>'+
-        '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">'+
-          '<div style="height:100%;width:'+pct+'%;background:'+ct.color+';border-radius:3px;transition:width .5s;"></div>'+
-        '</div>'+
-      '</div>'+
-      '<div class="group-stat-nums">'+
-        '<div class="group-stat-total">'+total+'</div>'+
-        '<div class="group-stat-meta">'+avg+' avg \u00b7 '+count+' player'+(count!==1?'s':'')+'</div>'+
-      '</div>';
+      `<div style="width:32px;height:32px;border-radius:8px;background:${ct.color}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;">🌏</div>` +
+      `<div class="group-stat-info">` +
+        `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">` +
+          `<span class="fn-badge ${ct.cls}" style="font-size:10px;">${ct.label}</span>` +
+        `</div>` +
+        `<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">` +
+          `<div style="height:100%;width:${pct}%;background:${ct.color};border-radius:3px;transition:width .5s;"></div>` +
+        `</div>` +
+      `</div>` +
+      `<div class="group-stat-nums">` +
+        `<div class="group-stat-total">${total}</div>` +
+        `<div class="group-stat-meta">${avg} avg · ${count} player${count!==1?'s':''}</div>` +
+      `</div>`;
     ctyPane.appendChild(row);
   });
   if(!ctyPane.querySelector('.group-stat-row')){
-    ctyPane.innerHTML='<p style="color:var(--t3);font-size:13px;padding:12px 0;">No country data yet.</p>';
+    ctyPane.innerHTML='<p style="color:var(--t3);font-size:13px;padding:12px 0;">No country data yet — players need to register their country team.</p>';
+  }
+
+  // Top Country fun snippet in country pane
+  const topCty=ctyEntries.find(e=>e.count>0&&parseFloat(e.avg)>0);
+  if(topCty){
+    const tip=document.createElement('div');tip.style.cssText='margin-top:16px;padding:12px;background:var(--surface);border-radius:8px;border:1px solid var(--border);font-size:12px;color:var(--t3);';
+    tip.innerHTML=`🌏 Leading country: <span class="fn-badge ${topCty.ct.cls}" style="font-size:10px;">${topCty.ct.label}</span> with <strong style="color:var(--t1);">${topCty.avg} avg pts</strong>`;
+    ctyPane.appendChild(tip);
   }
 }
 
@@ -3263,6 +3343,7 @@ function renderPublicPage(){
         </div>
         <div style="margin-top:12px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--t2);line-height:1.7;"><strong style="color:var(--t1);">Normal time + AET:</strong> Score predictions count for goals scored in normal time (90 minutes) as well as Extra Time (added 30 minutes). <strong>Correct Score</strong> applies across both phases of the match: normal time + Extra Time (AET). If a knockout match goes to penalties, penalties do not change the scoreline used for Correct Score.</div>
           <div style="margin-top:10px;font-size:12px;color:var(--t3);">Predictions lock 1 hour before each kickoff. Times shown in your local timezone.</div>
+        <div style="margin-top:10px;font-size:12px;color:var(--t3);">Predictions lock 1 hour before each kickoff. Times shown in your local timezone.</div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:14px;">
@@ -3418,9 +3499,8 @@ function renderBracket() {
       const r = results[m.id] || bracketResults[m.id];
       const card = document.createElement('div');
       card.className = 'bracket-match' + (r ? ' has-result' : '');
-      // Winner: score comparison OR pen_winner for draws
-      const homeIsWinner = r && (Number(r.home) > Number(r.away) || (Number(r.home)===Number(r.away) && r.pen_winner==='home'));
-      const awayIsWinner = r && (Number(r.away) > Number(r.home) || (Number(r.home)===Number(r.away) && r.pen_winner==='away'));
+      const homeIsWinner = r && (Number(r.home)>Number(r.away)||(Number(r.home)===Number(r.away)&&r.pen_winner==='home'));
+      const awayIsWinner = r && (Number(r.away)>Number(r.home)||(Number(r.home)===Number(r.away)&&r.pen_winner==='away'));
       // bracketTeams (admin-set) takes priority over CSV placeholders
       // CSV has real names only for group stage; KO rounds have codes like "2A", "1C", "3ABCDF"
       const btHome = bracketTeams[m.id]?.home || '';
@@ -3442,7 +3522,6 @@ function renderBracket() {
           <span class="bt-name">${awayDisplay?esc(awayDisplay):'<span class="bracket-slot">TBD</span>'}</span>
           ${r?`<span class="bt-score">${r.away}</span>`:''}
         </div>
-        ${r&&r.pen_winner?`<div style="padding:2px 10px 0;font-size:9px;color:var(--t3);text-align:center;">aet &middot; pens ${r.pen_home}–${r.pen_away}</div>`:''}
         <div style="padding:4px 10px 6px;font-size:10px;color:var(--t4);font-family:'DM Mono',monospace;">${fmtDate(m.utc)}</div>`;
       matchesDiv.appendChild(card);
     });
@@ -3881,6 +3960,10 @@ function buildPreviewPanel(matchId) {
           '<div class="preview-current-text">' + esc(data.stat) + '</div>' +
           (matchMeta ? '<div class="preview-current-meta">' + esc(matchMeta) + '</div>' : '');
         body.appendChild(statWrap);
+        const s = document.createElement('div');
+        s.className = 'preview-stat-pill';
+        s.innerHTML = '📊 ' + esc(data.stat);
+        body.appendChild(s);
       }
     } catch(e) {
       body.innerHTML = '<div style="padding:10px;color:var(--t3);font-size:12px;">Preview unavailable.</div>';
