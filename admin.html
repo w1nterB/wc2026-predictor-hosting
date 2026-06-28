@@ -1481,7 +1481,7 @@ async function loadAllFromSupabase() {
       sbFetch('users?select=name,fn&order=name'),
       sbFetch('results?select=match_id,home_score,away_score,pen_home,pen_away,pen_winner'),
       sbFetch('bracket?select=match_id,home_name,away_name,home_score,away_score'),
-      sbFetch('predictions?select=name,type,match_id,home_score,away_score,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
+      sbFetch('predictions?select=name,type,match_id,home_score,away_score,pen_winner,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
     ]);
     const participantRows = userRows; // users table is the source of participants
 
@@ -1540,7 +1540,8 @@ async function loadAllFromSupabase() {
         } else if(row.type === 'match' && row.match_id) {
           predictions[row.name][row.match_id] = {
             home: row.home_score,
-            away: row.away_score
+            away: row.away_score,
+            pen_winner: row.pen_winner || null
           };
         }
       });
