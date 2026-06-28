@@ -1469,26 +1469,29 @@ const SUPABASE_ANON_KEY = 'sb_publishable_cM_2MbnrQpuhKSqhy0Rb-g_f6ayterV';
 // ── LOW-LEVEL FETCH WRAPPER ──
 async function sbFetch(path, opts = {}) {
   const url = SUPABASE_URL + '/rest/v1/' + path;
+  const method = opts.method || 'GET';
+  const isGet  = method === 'GET';
   const headers = {
     'apikey':        SUPABASE_ANON_KEY,
     'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
     'Content-Type':  'application/json',
-    'Prefer':        opts.prefer || 'return=minimal',
-    'Range-Unit':    'items',
-    'Range':         opts.range  || '0-9999',
+    'Prefer':        opts.prefer || (isGet ? 'return=representation' : 'return=minimal'),
   };
+  // Only add Range headers on GET — sending them on POST/PATCH causes 416 errors
+  if(isGet) {
+    headers['Range-Unit'] = 'items';
+    headers['Range']      = opts.range || '0-9999';
+  }
   try {
     const res = await fetch(url, {
-      method:  opts.method  || 'GET',
+      method,
       headers: { ...headers, ...(opts.headers || {}) },
-      body:    opts.body    ? JSON.stringify(opts.body) : undefined,
+      body:    opts.body ? JSON.stringify(opts.body) : undefined,
     });
-    const method = opts.method || 'GET';
     const text = await res.text();
     if(!res.ok) {
-      console.error('Supabase error', res.status, text);
+      console.error('Supabase error', res.status, path, text);
     }
-    // Return parsed JSON whenever we have a body (GET or POST with return=representation)
     if(text) {
       try { return JSON.parse(text); } catch(e) {}
     }
