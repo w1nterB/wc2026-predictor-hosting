@@ -1530,7 +1530,7 @@ async function loadAllFromSupabase() {
       sbFetch('users?select=name,fn,country&order=name'),
       sbFetch('results?select=match_id,home_score,away_score,pen_home,pen_away,pen_winner'),
       sbFetch('bracket?select=match_id,home_name,away_name,home_score,away_score'),
-      sbFetch('predictions?select=name,type,match_id,home_score,away_score,pen_winner,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
+      sbFetch('predictions?select=name,type,match_id,home_score,away_score,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
       sbFetch('matches?select=*&order=num'),
     ]);
     const participantRows = userRows;
@@ -1552,13 +1552,17 @@ async function loadAllFromSupabase() {
 
     // Apply participants + PINs
     if(Array.isArray(participantRows) && participantRows.length > 0) {
-      participants = participantRows.map(p => p.name);
+      participants = participantRows
+        .map(p => normalizeParticipantName(p))
+        .filter(Boolean);
       participantRows.forEach(p => {
-        if(p.fn) participantFunctions[p.name] = p.fn;
-        if(p.country) participantCountries[p.name] = p.country;
+        const name = normalizeParticipantName(p);
+        if(!name) return;
+        if(p.fn) participantFunctions[name] = p.fn;
+        if(p.country) participantCountries[name] = p.country;
         // Only set PIN if it's a real non-null non-'None' string
         if(p.pin && p.pin !== 'None' && p.pin !== 'null') {
-          participantPins[p.name] = p.pin;
+          participantPins[name] = p.pin;
         }
       });
     }
@@ -1585,9 +1589,12 @@ async function loadAllFromSupabase() {
     // Apply predictions (rebuild in-memory predictions object)
     if(Array.isArray(predRows)) {
       predRows.forEach(row => {
-        if(!predictions[row.name]) predictions[row.name] = {};
+        const name = normalizeParticipantName(row);
+        if(!name) return;
+        if(!predictions[name]) predictions[name] = {};
+        if(!participants.includes(name)) participants.push(name);
         if(row.type === 'specials') {
-          predictions[row.name].specials = {
+          predictions[name].specials = {
             winner:    row.winner    || '',
             runnerUp:  row.runner_up || '',
             topScorer: row.top_scorer|| '',
@@ -1595,7 +1602,7 @@ async function loadAllFromSupabase() {
             sf1: row.sf1||'', sf2: row.sf2||'', sf3: row.sf3||'', sf4: row.sf4||''
           };
         } else if(row.type === 'match' && row.match_id) {
-          predictions[row.name][row.match_id] = {
+          predictions[name][row.match_id] = {
             home: row.home_score,
             away: row.away_score,
             pen_winner: row.pen_winner || null
@@ -1644,7 +1651,6 @@ async function postToSheet(payload) {
     sf2: payload.sf2 || null,
     sf3: payload.sf3 || null,
     sf4: payload.sf4 || null,
-    pen_winner: payload.penWinner || null,
   };
   // Write directly to Supabase — no callSheet, no Google Sheets
   return sbFetch('predictions?on_conflict=name,type,match_id', {
@@ -1810,6 +1816,16 @@ let specialsActual       = {};
 let activeGroupFilter    = 'all';
 
 const PHASES = { specials: false, groupStage: false };
+
+function normalizeParticipantName(row) {
+  if(!row) return '';
+  const raw = typeof row === 'string'
+    ? row
+    : (row.name ?? row.display_name ?? row.full_name ?? row.email ?? '');
+  const name = String(raw).trim();
+  if(!name || name.toLowerCase() === 'null' || name.toLowerCase() === 'undefined') return '';
+  return name;
+}
 
 function savePhases() {}
 function saveParticipantPins() {}
@@ -3617,8 +3633,15 @@ async function authLogin() {
 
 // ── LOGIN SUCCESS ──
 function onLoginSuccess(user) {
+  const displayName = normalizeParticipantName(user);
+  if(!displayName) {
+    console.error('Login succeeded but user record has no displayable name:', user);
+    showToast('Your account is missing a display name. Please contact the admin.');
+    return;
+  }
+  user.name = displayName;
   currentUser  = user;
-  verifiedUser = user.name;
+  verifiedUser = displayName;
 
   hideAuthOverlay();
   updateUserPill(user);
@@ -3628,19 +3651,19 @@ function onLoginSuccess(user) {
   const loginName = document.getElementById('logged-in-name');
   const loginFn  = document.getElementById('logged-in-fn');
   if(loginAs)   loginAs.style.display  = 'flex';
-  if(loginName) loginName.textContent  = user.name;
+  if(loginName) loginName.textContent  = displayName;
   if(loginFn)   loginFn.innerHTML      = fnBadgeByKey(user.fn);
 
   // Set the hidden select so all existing logic works
   const sel = document.getElementById('participant-select');
   if(sel) {
     // Ensure the user is in the options
-    if(!Array.from(sel.options).find(o => o.value === user.name)) {
+    if(!Array.from(sel.options).find(o => o.value === displayName)) {
       const o = document.createElement('option');
-      o.value = user.name; o.textContent = user.name;
+      o.value = displayName; o.textContent = displayName;
       sel.appendChild(o);
     }
-    sel.value = user.name;
+    sel.value = displayName;
     onParticipantChange();
   }
 
@@ -3659,10 +3682,10 @@ function onLoginSuccess(user) {
   updatePhaseBadges();
   showFirstTimeWelcome(user);
   renderMatches();
-  if(predictions[user.name]) loadPredictions(user.name);
+  if(predictions[displayName]) loadPredictions(displayName);
   updateSubmitState();
 
-  showToast('Welcome back, ' + user.name + '! 👋');
+  showToast('Welcome back, ' + displayName + '! 👋');
 }
 
 function updateUserPill(user) {
@@ -3695,18 +3718,19 @@ function confirmLogout() {
 function syncNewUserToParticipants(user) {
   // Add to local participants array if not already there.
   // The users table is already saved in Supabase; this only updates the current browser session.
-  if(!user || !user.name) return;
-  if(!participants.includes(user.name)) {
-    participants.push(user.name);
+  const name = normalizeParticipantName(user);
+  if(!name) return;
+  if(!participants.includes(name)) {
+    participants.push(name);
   }
-  participantFunctions[user.name] = user.fn || 'di';
-    if(user.country) participantCountries[user.name] = user.country;
+  participantFunctions[name] = user.fn || 'di';
+    if(user.country) participantCountries[name] = user.country;
 
   const sel = document.getElementById('participant-select');
-  if(sel && !Array.from(sel.options).some(o => o.value === user.name)) {
+  if(sel && !Array.from(sel.options).some(o => o.value === name)) {
     const o = document.createElement('option');
-    o.value = user.name;
-    o.textContent = user.name;
+    o.value = name;
+    o.textContent = name;
     sel.appendChild(o);
   }
 }
@@ -3951,6 +3975,7 @@ function finishInit() {
   if(sel) {
     const cur = sel.value;
     sel.innerHTML = '<option value="">— select your name —</option>';
+    participants = [...new Set(participants.map(normalizeParticipantName).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
     participants.forEach(name => {
       const o = document.createElement('option');
       o.value = name; o.textContent = name;
