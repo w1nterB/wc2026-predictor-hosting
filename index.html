@@ -1472,6 +1472,8 @@ async function sbFetch(path, opts = {}) {
     'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
     'Content-Type':  'application/json',
     'Prefer':        opts.prefer || 'return=minimal',
+    'Range-Unit':    'items',
+    'Range':         opts.range  || '0-9999',
   };
   try {
     const res = await fetch(url, {
@@ -1559,11 +1561,8 @@ async function loadAllFromSupabase() {
     // Apply results
     if(Array.isArray(resultRows)) {
       resultRows.forEach(r => {
-        results[r.match_id] = {
-          home: r.home_score, away: r.away_score,
-          pen_home: r.pen_home ?? null, pen_away: r.pen_away ?? null,
-          pen_winner: r.pen_winner ?? null
-        };
+        results[r.match_id] = { home: r.home_score, away: r.away_score,
+          pen_home: r.pen_home??null, pen_away: r.pen_away??null, pen_winner: r.pen_winner??null };
       });
     }
 
@@ -1594,7 +1593,8 @@ async function loadAllFromSupabase() {
         } else if(row.type === 'match' && row.match_id) {
           predictions[row.name][row.match_id] = {
             home: row.home_score,
-            away: row.away_score
+            away: row.away_score,
+            pen_winner: row.pen_winner || null
           };
         }
       });
@@ -1896,13 +1896,10 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
   card.id = `match-${m.id}`;
   const scoreDisplay = (() => {
     if(!hr) return '<div class="match-vs">VS</div>';
-    const r = results[m.id];
-    let disp = `<div class="result-score">${r.home} &ndash; ${r.away}</div>`;
-    if(r.pen_winner){
-      const pw = r.pen_winner==='home'?m.home:m.away;
-      disp += `<div style="font-size:10px;color:var(--t3);text-align:center;margin-top:2px;">aet · ${esc(pw)} on pens</div>`;
-    }
-    return disp;
+    const _r=results[m.id];
+    let d=`<div class="result-score">${_r.home} &ndash; ${_r.away}</div>`;
+    if(_r.pen_winner){const pw=_r.pen_winner==='home'?m.home:m.away;d+=`<div style="font-size:10px;color:var(--t3);text-align:center;margin-top:2px;">aet · ${esc(pw)} on pens</div>`;}
+    return d;
   })();
   // If match is locked by time (not result) and user has a saved prediction, show it
   const userPred = !hr && locked && currentUser && predictions[currentUser]?.[m.id];
@@ -1916,27 +1913,21 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
   const dispHome = bt.home || (m.home !== 'To be announced' ? m.home : 'TBD');
   const dispAway = bt.away || (m.away !== 'To be announced' ? m.away : 'TBD');
   card.innerHTML = `<div class="team-side"><span class="team-flag">${hf}</span><span class="team-name">${dispHome}${hStar}</span></div><div class="match-meta"><div class="match-time">${timeStr}</div>${scoreDisplay}</div><div class="team-side right"><span class="team-name">${dispAway}${aStar}</span><span class="team-flag">${af}</span></div><div class="prediction-row"><div class="score-input-wrap" style="justify-content:flex-start;"><label>${dispHome}</label><input class="score-input" id="h-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}></div><span class="score-sep">&ndash;</span><div class="score-input-wrap" style="justify-content:flex-end;"><input class="score-input" id="a-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}><label>${dispAway}</label></div><div class="match-save-status" id="save-${m.id}"></div></div>`;
-  // Add pen winner picker for KO matches (no group = knockout)
+  // Pen winner picker for KO matches
   if(!locked && !m.group){
-    const penWrap = document.createElement('div');
-    penWrap.id = 'pen-wrap-'+m.id;
-    penWrap.style.cssText = 'margin-top:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:none;';
-    penWrap.innerHTML =
-      '<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;margin-bottom:6px;">IF DRAW AFTER 90 MINS — WHO WINS ON PENS?</div>' +
-      '<select id="pen-winner-'+m.id+'" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--page);font-size:13px;color:var(--t1);">' +
-        '<option value="">— Select pen winner —</option>' +
-        '<option value="home">'+esc(dispHome)+'</option>' +
-        '<option value="away">'+esc(dispAway)+'</option>' +
+    const penWrap=document.createElement('div');
+    penWrap.id='pen-wrap-'+m.id;
+    penWrap.style.cssText='margin-top:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:none;';
+    penWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;margin-bottom:6px;">IF DRAW AFTER 90 MINS — WHO WINS ON PENS?</div>'+
+      '<select id="pen-winner-'+m.id+'" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--page);font-size:13px;color:var(--t1);">'+
+      '<option value="">— Select pen winner —</option>'+
+      '<option value="home">'+esc(dispHome)+'</option>'+
+      '<option value="away">'+esc(dispAway)+'</option>'+
       '</select>';
     card.appendChild(penWrap);
-    // Show/hide based on score inputs
-    const showPen = () => {
-      const hv = parseInt(card.querySelector('#h-'+m.id)?.value);
-      const av = parseInt(card.querySelector('#a-'+m.id)?.value);
-      penWrap.style.display = (!isNaN(hv) && !isNaN(av) && hv===av) ? 'block' : 'none';
-    };
-    card.querySelector('#h-'+m.id)?.addEventListener('input', showPen);
-    card.querySelector('#a-'+m.id)?.addEventListener('input', showPen);
+    const _showPen=()=>{const hv=parseInt(card.querySelector('#h-'+m.id)?.value);const av=parseInt(card.querySelector('#a-'+m.id)?.value);penWrap.style.display=(!isNaN(hv)&&!isNaN(av)&&hv===av)?'block':'none';};
+    card.querySelector('#h-'+m.id)?.addEventListener('input',_showPen);
+    card.querySelector('#a-'+m.id)?.addEventListener('input',_showPen);
   }
   // Populate saved prediction immediately so view changes don't wipe values
   if(!locked && currentUser && predictions[currentUser]?.[m.id]) {
@@ -1945,10 +1936,8 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
     const aIn = card.querySelector('#a-'+m.id);
     if(hIn && saved.home !== undefined) hIn.value = saved.home;
     if(aIn && saved.away !== undefined) aIn.value = saved.away;
-    // Show pen picker if saved was a draw
-    if(saved.home !== undefined && saved.home === saved.away){
-      const pw = card.querySelector('#pen-wrap-'+m.id);
-      if(pw) pw.style.display = 'block';
+    if(saved.home !== undefined && saved.away !== undefined && saved.home === saved.away){
+      const pw=card.querySelector('#pen-wrap-'+m.id);if(pw)pw.style.display='block';
     }
   }
   // Add preview panel for group stage matches (skip in bulk views for performance)
@@ -2043,6 +2032,10 @@ function renderMatches(){
       renderByMatchday(upcoming, upcomingMatches, []);
     }
   }
+
+  // Re-load predictions into newly rendered cards
+  const _curUser = document.getElementById('participant-select')?.value;
+  if(_curUser && predictions[_curUser]) setTimeout(() => loadPredictions(_curUser), 0);
 
   /* ── VIEW ALL ── */
   if(completedMatches.length > 0) {
@@ -2560,13 +2553,6 @@ function unlockPredictions(name) {
 function loadPredictions(name){
   const p = predictions[name]; if(!p) return;
   // Specials
-  // Load pen_winner predictions for KO matches
-  ALL_MATCHES.filter(m => !m.group).forEach(m => {
-    const pred = p[m.id];
-    if(!pred) return;
-    const penSel = document.getElementById('pen-winner-'+m.id);
-    if(penSel && pred.pen_winner) penSel.value = pred.pen_winner;
-  });
   if(p.specials){
     // Map element IDs to specials object keys (camelCase vs lowercase)
     const specialsKeyMap = {
@@ -2578,6 +2564,11 @@ function loadPredictions(name){
       if(el && p.specials[objKey]) el.value=p.specials[objKey];
     });
   }
+  // Load pen_winner for KO match pickers
+  ALL_MATCHES.filter(m=>!m.group).forEach(m=>{
+    const ps=document.getElementById('pen-winner-'+m.id);
+    if(ps && p[m.id]?.pen_winner) ps.value=p[m.id].pen_winner;
+  });
   // Only update VISIBLE score inputs — querySelector is far faster than 104x getElementById
   document.querySelectorAll('.score-input[id^="h-"]').forEach(input => {
     const matchId = input.id.slice(2); // strip "h-"
@@ -2781,7 +2772,10 @@ async function submitPredictions(){
     if(results[m.id]||isMatchLocked(m.id)) return;
     const h=document.getElementById(`h-${m.id}`),a=document.getElementById(`a-${m.id}`);
     if(h&&a&&h.value!==''&&a.value!==''){
-      matchPreds[m.id]={home:parseInt(h.value),away:parseInt(a.value)};
+      const hp=parseInt(h.value),ap=parseInt(a.value);
+      const pred={home:hp,away:ap};
+      if(!m.group&&hp===ap){const ps=document.getElementById('pen-winner-'+m.id);if(ps&&ps.value)pred.pen_winner=ps.value;}
+      matchPreds[m.id]=pred;
       predictions[name][m.id]=matchPreds[m.id];
     }
   });
@@ -2890,33 +2884,17 @@ function saveSheetUrl(){
 function toggleInstr(){const b=document.getElementById('instr-body'),t=document.getElementById('instr-toggle');const s=b.style.display!=='none';b.style.display=s?'none':'block';t.textContent=s?'Show setup guide':'Hide setup guide';}
 
 function res(h,a){return h>a?'H':a>h?'A':'D';}
-function resKO(actual){
-  if(!actual) return 'D';
-  const r = res(actual.home, actual.away);
-  if(r !== 'D') return r;
-  if(actual.pen_winner === 'home') return 'H';
-  if(actual.pen_winner === 'away') return 'A';
-  return 'D';
-}
-function scoreMatch(pred,actual){
-  const bd = scoreMatchBreakdown(pred,actual);
-  return bd.total;
-}
+function resKO(actual){if(!actual)return'D';const r=res(actual.home,actual.away);if(r!=='D')return r;if(actual.pen_winner==='home')return'H';if(actual.pen_winner==='away')return'A';return'D';}
+function scoreMatch(pred,actual){return scoreMatchBreakdown(pred,actual).total;}
 function scoreMatchBreakdown(pred,actual){
   if(!pred||!actual) return {result:0,score:0,total:0};
-  const homeHit = pred.home===actual.home, awayHit = pred.away===actual.away;
-  const score   = (homeHit&&awayHit)?6:(homeHit||awayHit)?3:0;
-  // For KO matches with pens: award result pts if predicted draw AND correct pen winner
-  let result = 0;
+  const homeHit=pred.home===actual.home, awayHit=pred.away===actual.away;
+  const score=(homeHit&&awayHit)?6:(homeHit||awayHit)?3:0;
+  let result=0;
   if(actual.pen_winner){
-    // Actual was a draw + pens — result pts only if predicted draw with correct pen winner
-    if(res(pred.home,pred.away)==='D'){
-      if(pred.pen_winner && pred.pen_winner===actual.pen_winner) result=3;
-      // predicted draw, no pen pick: no result pts (they didn't predict the winner)
-    }
-    // predicted a win for either side: no result pts since actual went to pens
+    if(res(pred.home,pred.away)==='D' && pred.pen_winner && pred.pen_winner===actual.pen_winner) result=3;
   } else {
-    result = res(pred.home,pred.away)===res(actual.home,actual.away)?3:0;
+    result=res(pred.home,pred.away)===res(actual.home,actual.away)?3:0;
   }
   return {result,score,total:result+score};
 }
@@ -3235,7 +3213,10 @@ function _doShowTab(name){
   });
   const ttEl=document.getElementById('topbar-title');
   if(ttEl) ttEl.textContent=TAB_TITLES[name]||name;
-  if(name==='dashboard') renderDashboard();
+  if(name==='dashboard') {
+    // Ensure predictions are loaded before rendering scores
+    renderDashboard();
+  }
   if(name==='public') renderPublicPage();
   if(name==='bracket') renderBracket();
   if(name==='admin'){ window.location.href='admin.html'; return; }
@@ -3345,11 +3326,8 @@ function renderPublicPage(){
         const schedR = results[m.id] || bracketResults[m.id];
     const scoreCell = schedR
       ? (() => {
-          const base = `<span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--teal-mid);">${schedR.home}&thinsp;–&thinsp;${schedR.away}</span>`;
-          if(schedR.pen_winner){
-            const pw = schedR.pen_winner==='home'?(schedBt.home||m.home):(schedBt.away||m.away);
-            return base+`<br><span style="font-size:10px;color:var(--t3);">aet · ${pw} on pens (${schedR.pen_home}–${schedR.pen_away})</span>`;
-          }
+          const base=`<span style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--teal-mid);">${schedR.home}&thinsp;–&thinsp;${schedR.away}</span>`;
+          if(schedR.pen_winner){const pw=schedR.pen_winner==='home'?(schedBt.home||m.home):(schedBt.away||m.away);return base+`<br><span style="font-size:10px;color:var(--t3);">aet · ${pw} on pens (${schedR.pen_home}–${schedR.pen_away})</span>`;}
           return base;
         })()
       : `<span style="color:var(--t4);font-size:12px;">vs</span>`;
