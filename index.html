@@ -1910,11 +1910,11 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
     }
     return d;
   })();
+  const currentUser = document.getElementById('participant-select')?.value;
+  const timeStr = fmtMatchTime(m.id);
+  const userWinner = currentUser && predictions[currentUser]?.specials?.winner;
   // If match is locked by time (not result) and user has a saved prediction, show it
   const userPred = !hr && locked && currentUser && predictions[currentUser]?.[m.id];
-  const timeStr = fmtMatchTime(m.id);
-  const currentUser = document.getElementById('participant-select')?.value;
-  const userWinner = currentUser && predictions[currentUser]?.specials?.winner;
   const hStar = userWinner===m.home ? `<span class="winner-star" title="Your predicted winner">★</span>` : '';
   const aStar = userWinner===m.away ? `<span class="winner-star" title="Your predicted winner">★</span>` : '';
   const hf = m.hf||''; const af = m.af||'';
@@ -2906,23 +2906,18 @@ function saveSheetUrl(){
 function toggleInstr(){const b=document.getElementById('instr-body'),t=document.getElementById('instr-toggle');const s=b.style.display!=='none';b.style.display=s?'none':'block';t.textContent=s?'Show setup guide':'Hide setup guide';}
 
 function res(h,a){return h>a?'H':a>h?'A':'D';}
-function scoreMatch(pred,actual){
-  if(!pred||!actual) return 0;
-  let pts=0;
-  // Result: correct W/D/L = 3pts
-  if(res(pred.home,pred.away)===res(actual.home,actual.away)) pts+=3;
-  // Score: one team correct = 3pts, both teams correct = 6pts
-  const homeHit = pred.home===actual.home;
-  const awayHit = pred.away===actual.away;
-  if(homeHit && awayHit) pts+=6;      // exact score: +6
-  else if(homeHit || awayHit) pts+=3; // one team correct: +3
-  return pts;
-}
+function scoreMatch(pred,actual){return scoreMatchBreakdown(pred,actual).total;}
 function scoreMatchBreakdown(pred,actual){
   if(!pred||!actual) return {result:0,score:0,total:0};
-  const result = res(pred.home,pred.away)===res(actual.home,actual.away)?3:0;
   const homeHit=pred.home===actual.home, awayHit=pred.away===actual.away;
-  const score = (homeHit&&awayHit)?6:(homeHit||awayHit)?3:0;
+  const score=(homeHit&&awayHit)?6:(homeHit||awayHit)?3:0;
+  let result=0;
+  if(actual.pen_winner){
+    // KO draw went to pens: result pts only if predicted draw AND correct pen winner
+    if(res(pred.home,pred.away)==='D' && pred.pen_winner && pred.pen_winner===actual.pen_winner) result=3;
+  } else {
+    result=res(pred.home,pred.away)===res(actual.home,actual.away)?3:0;
+  }
   return {result,score,total:result+score};
 }
 function calcScores(){
