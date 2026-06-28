@@ -1954,6 +1954,17 @@ async function saveResult(){
   const penH=penVis?parseInt(document.getElementById('pen-score-home').value)||null:null;
   const penA=penVis?parseInt(document.getElementById('pen-score-away').value)||null:null;
   const penW=penVis?(document.querySelector('input[name="pen-winner"]:checked')?.value||null):null;
+
+  // ── PENALTY VALIDATION ──
+  if(penVis){
+    if(!penW){showToast('Select the penalty shootout winner',true);return;}
+    if(penH===null||penA===null||isNaN(penH)||isNaN(penA)){showToast('Enter both penalty scores',true);return;}
+    if(penH===penA){showToast('Penalty scores cannot be equal — one team must win',true);return;}
+    // Check pen score matches selected winner
+    if(penW==='home'&&penH<penA){showToast('Penalty winner is Home but Away has more pen goals — please check',true);return;}
+    if(penW==='away'&&penA<penH){showToast('Penalty winner is Away but Home has more pen goals — please check',true);return;}
+  }
+
   const st = document.getElementById('result-save-status');
   if(st) st.textContent = 'Saving…';
   results[id]={home:hInt,away:aInt,pen_home:penH,pen_away:penA,pen_winner:penW};
@@ -2794,6 +2805,17 @@ async function saveResult(){
   const penH=penVis?parseInt(document.getElementById('pen-score-home').value)||null:null;
   const penA=penVis?parseInt(document.getElementById('pen-score-away').value)||null:null;
   const penW=penVis?(document.querySelector('input[name="pen-winner"]:checked')?.value||null):null;
+
+  // ── PENALTY VALIDATION ──
+  if(penVis){
+    if(!penW){showToast('Select the penalty shootout winner',true);return;}
+    if(penH===null||penA===null||isNaN(penH)||isNaN(penA)){showToast('Enter both penalty scores',true);return;}
+    if(penH===penA){showToast('Penalty scores cannot be equal — one team must win',true);return;}
+    // Check pen score matches selected winner
+    if(penW==='home'&&penH<penA){showToast('Penalty winner is Home but Away has more pen goals — please check',true);return;}
+    if(penW==='away'&&penA<penH){showToast('Penalty winner is Away but Home has more pen goals — please check',true);return;}
+  }
+
   const st = document.getElementById('result-save-status');
   if(st) st.textContent = 'Saving…';
   results[id]={home:hInt,away:aInt,pen_home:penH,pen_away:penA,pen_winner:penW};
@@ -3410,8 +3432,9 @@ async function initAdmin() {
       const id=this.value,area=document.getElementById('result-entry-area'),db=document.getElementById('delete-result-btn');
       if(!id){area.style.display='none';return;}
       const m=ALL_MATCHES.find(x=>x.id===id);
-      document.getElementById('res-team-home').textContent=m?m.home:'';
-      document.getElementById('res-team-away').textContent=m?m.away:'';
+      const bt=bracketTeams[id]||{};
+      document.getElementById('res-team-home').textContent=bt.home||(m?m.home:'');
+      document.getElementById('res-team-away').textContent=bt.away||(m?m.away:'');
       const ex=results[id];
       document.getElementById('res-score-home').value=ex?ex.home:'';
       document.getElementById('res-score-away').value=ex?ex.away:'';
