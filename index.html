@@ -1071,6 +1071,33 @@ select.portal-input option{background:#fff;}
   padding:10px 14px;margin-top:10px;
   font-size:12px;color:var(--t2);line-height:1.6;
 }
+.preview-current-card {
+  margin-top:12px;
+  padding:14px 16px;
+  background:linear-gradient(135deg,rgba(37,196,179,.16),rgba(37,196,179,.05) 55%,rgba(31,38,47,.03));
+  border:1px solid rgba(37,196,179,.35);
+  border-left:4px solid var(--teal);
+  border-radius:10px;
+  box-shadow:0 2px 8px rgba(37,196,179,.10);
+}
+.preview-current-label {
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(37,196,179,.16);
+  color:var(--teal-dk);
+  border:1px solid rgba(37,196,179,.28);
+  border-radius:999px;
+  padding:3px 9px;
+  font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;
+  margin-bottom:8px;
+}
+.preview-current-text {
+  font-size:13px;color:var(--t1);line-height:1.65;font-weight:600;
+}
+.preview-current-meta {
+  margin-top:8px;
+  font-size:11px;color:var(--t3);
+  font-family:'DM Mono',monospace;
+}
 .preview-stat-pill {
   display:inline-flex;align-items:center;gap:6px;
   background:rgba(230,190,47,.08);border:1px solid rgba(230,190,47,.2);
@@ -1530,7 +1557,7 @@ async function loadAllFromSupabase() {
       sbFetch('users?select=name,fn,country&order=name'),
       sbFetch('results?select=match_id,home_score,away_score,pen_home,pen_away,pen_winner'),
       sbFetch('bracket?select=match_id,home_name,away_name,home_score,away_score'),
-      sbFetch('predictions?select=name,type,match_id,home_score,away_score,pen_winner,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
+      sbFetch('predictions?select=name,type,match_id,home_score,away_score,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
       sbFetch('matches?select=*&order=num'),
     ]);
     const participantRows = userRows;
@@ -1552,13 +1579,17 @@ async function loadAllFromSupabase() {
 
     // Apply participants + PINs
     if(Array.isArray(participantRows) && participantRows.length > 0) {
-      participants = participantRows.map(p => p.name);
+      participants = participantRows
+        .map(p => normalizeParticipantName(p))
+        .filter(Boolean);
       participantRows.forEach(p => {
-        if(p.fn) participantFunctions[p.name] = p.fn;
-        if(p.country) participantCountries[p.name] = p.country;
+        const name = normalizeParticipantName(p);
+        if(!name) return;
+        if(p.fn) participantFunctions[name] = p.fn;
+        if(p.country) participantCountries[name] = p.country;
         // Only set PIN if it's a real non-null non-'None' string
         if(p.pin && p.pin !== 'None' && p.pin !== 'null') {
-          participantPins[p.name] = p.pin;
+          participantPins[name] = p.pin;
         }
       });
     }
@@ -1585,9 +1616,12 @@ async function loadAllFromSupabase() {
     // Apply predictions (rebuild in-memory predictions object)
     if(Array.isArray(predRows)) {
       predRows.forEach(row => {
-        if(!predictions[row.name]) predictions[row.name] = {};
+        const name = normalizeParticipantName(row);
+        if(!name) return;
+        if(!predictions[name]) predictions[name] = {};
+        if(!participants.includes(name)) participants.push(name);
         if(row.type === 'specials') {
-          predictions[row.name].specials = {
+          predictions[name].specials = {
             winner:    row.winner    || '',
             runnerUp:  row.runner_up || '',
             topScorer: row.top_scorer|| '',
@@ -1595,7 +1629,7 @@ async function loadAllFromSupabase() {
             sf1: row.sf1||'', sf2: row.sf2||'', sf3: row.sf3||'', sf4: row.sf4||''
           };
         } else if(row.type === 'match' && row.match_id) {
-          predictions[row.name][row.match_id] = {
+          predictions[name][row.match_id] = {
             home: row.home_score,
             away: row.away_score,
             pen_winner: row.pen_winner || null
@@ -1644,7 +1678,6 @@ async function postToSheet(payload) {
     sf2: payload.sf2 || null,
     sf3: payload.sf3 || null,
     sf4: payload.sf4 || null,
-    pen_winner: payload.penWinner || null,
   };
   // Write directly to Supabase — no callSheet, no Google Sheets
   return sbFetch('predictions?on_conflict=name,type,match_id', {
@@ -1810,6 +1843,16 @@ let specialsActual       = {};
 let activeGroupFilter    = 'all';
 
 const PHASES = { specials: false, groupStage: false };
+
+function normalizeParticipantName(row) {
+  if(!row) return '';
+  const raw = typeof row === 'string'
+    ? row
+    : (row.name ?? row.display_name ?? row.full_name ?? row.email ?? '');
+  const name = String(raw).trim();
+  if(!name || name.toLowerCase() === 'null' || name.toLowerCase() === 'undefined') return '';
+  return name;
+}
 
 function savePhases() {}
 function saveParticipantPins() {}
@@ -3163,7 +3206,7 @@ function renderPublicPage(){
       <div class="pub-group-card">
         <div class="pub-group-name">Match predictions</div>
         <div style="font-size:13px;color:var(--t2);line-height:1.8;">
-          For every group stage match, predict the scoreline. Points are awarded independently for <strong>result</strong> and <strong>score accuracy</strong> — you can earn both on the same game.
+          For every match, predict the scoreline. Points are awarded independently for <strong>result</strong> and <strong>score accuracy</strong> — you can earn both on the same game.
         </div>
         <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--page);border-radius:7px;border:1px solid var(--border);">
@@ -3183,7 +3226,7 @@ function renderPublicPage(){
             <span style="font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:var(--amber-dk);">9 pts</span>
           </div>
         </div>
-        <div style="margin-top:12px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--t2);line-height:1.7;"><strong style="color:var(--t1);">Knockout rounds:</strong> Your predicted scoreline counts at <em>90 mins and extra time</em>. If it goes to penalties, picking the shootout winner earns the +3 result points.</div>
+        <div style="margin-top:12px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--t2);line-height:1.7;"><strong style="color:var(--t1);">Normal time + AET:</strong> Score predictions count for goals scored in normal time (90 minutes) as well as Extra Time (added 30 minutes). <strong>Correct Score</strong> applies across both phases of the match: normal time + Extra Time (AET). If a knockout match goes to penalties, penalties do not change the scoreline used for Correct Score.</div>
           <div style="margin-top:10px;font-size:12px;color:var(--t3);">Predictions lock 1 hour before each kickoff. Times shown in your local timezone.</div>
       </div>
 
@@ -3617,8 +3660,15 @@ async function authLogin() {
 
 // ── LOGIN SUCCESS ──
 function onLoginSuccess(user) {
+  const displayName = normalizeParticipantName(user);
+  if(!displayName) {
+    console.error('Login succeeded but user record has no displayable name:', user);
+    showToast('Your account is missing a display name. Please contact the admin.');
+    return;
+  }
+  user.name = displayName;
   currentUser  = user;
-  verifiedUser = user.name;
+  verifiedUser = displayName;
 
   hideAuthOverlay();
   updateUserPill(user);
@@ -3628,19 +3678,19 @@ function onLoginSuccess(user) {
   const loginName = document.getElementById('logged-in-name');
   const loginFn  = document.getElementById('logged-in-fn');
   if(loginAs)   loginAs.style.display  = 'flex';
-  if(loginName) loginName.textContent  = user.name;
+  if(loginName) loginName.textContent  = displayName;
   if(loginFn)   loginFn.innerHTML      = fnBadgeByKey(user.fn);
 
   // Set the hidden select so all existing logic works
   const sel = document.getElementById('participant-select');
   if(sel) {
     // Ensure the user is in the options
-    if(!Array.from(sel.options).find(o => o.value === user.name)) {
+    if(!Array.from(sel.options).find(o => o.value === displayName)) {
       const o = document.createElement('option');
-      o.value = user.name; o.textContent = user.name;
+      o.value = displayName; o.textContent = displayName;
       sel.appendChild(o);
     }
-    sel.value = user.name;
+    sel.value = displayName;
     onParticipantChange();
   }
 
@@ -3659,10 +3709,10 @@ function onLoginSuccess(user) {
   updatePhaseBadges();
   showFirstTimeWelcome(user);
   renderMatches();
-  if(predictions[user.name]) loadPredictions(user.name);
+  if(predictions[displayName]) loadPredictions(displayName);
   updateSubmitState();
 
-  showToast('Welcome back, ' + user.name + '! 👋');
+  showToast('Welcome back, ' + displayName + '! 👋');
 }
 
 function updateUserPill(user) {
@@ -3695,18 +3745,19 @@ function confirmLogout() {
 function syncNewUserToParticipants(user) {
   // Add to local participants array if not already there.
   // The users table is already saved in Supabase; this only updates the current browser session.
-  if(!user || !user.name) return;
-  if(!participants.includes(user.name)) {
-    participants.push(user.name);
+  const name = normalizeParticipantName(user);
+  if(!name) return;
+  if(!participants.includes(name)) {
+    participants.push(name);
   }
-  participantFunctions[user.name] = user.fn || 'di';
-    if(user.country) participantCountries[user.name] = user.country;
+  participantFunctions[name] = user.fn || 'di';
+    if(user.country) participantCountries[name] = user.country;
 
   const sel = document.getElementById('participant-select');
-  if(sel && !Array.from(sel.options).some(o => o.value === user.name)) {
+  if(sel && !Array.from(sel.options).some(o => o.value === name)) {
     const o = document.createElement('option');
-    o.value = user.name;
-    o.textContent = user.name;
+    o.value = name;
+    o.textContent = name;
     sel.appendChild(o);
   }
 }
@@ -3788,10 +3839,12 @@ function buildPreviewPanel(matchId) {
       }
       if(data.stat) {
         const statWrap = document.createElement('div');
-        statWrap.style.cssText = 'margin-top:10px;padding:10px 12px;background:rgba(37,196,179,.06);border:1px solid rgba(37,196,179,.2);border-radius:8px;border-left:3px solid var(--teal);';
+        statWrap.className = 'preview-current-card';
+        const matchMeta = [m.round, m.group].filter(Boolean).join(' · ');
         statWrap.innerHTML =
-          '<div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--teal-mid);margin-bottom:5px;">⚽ WC2026 — GROUP STAGE</div>' +
-          '<div style="font-size:12px;color:var(--t2);line-height:1.7;">' + esc(data.stat) + '</div>';
+          '<div class="preview-current-label">⚽ Live WC2026 context</div>' +
+          '<div class="preview-current-text">' + esc(data.stat) + '</div>' +
+          (matchMeta ? '<div class="preview-current-meta">' + esc(matchMeta) + '</div>' : '');
         body.appendChild(statWrap);
       }
     } catch(e) {
@@ -3951,6 +4004,7 @@ function finishInit() {
   if(sel) {
     const cur = sel.value;
     sel.innerHTML = '<option value="">— select your name —</option>';
+    participants = [...new Set(participants.map(normalizeParticipantName).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
     participants.forEach(name => {
       const o = document.createElement('option');
       o.value = name; o.textContent = name;
