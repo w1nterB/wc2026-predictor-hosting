@@ -1687,12 +1687,29 @@ async function postToSheet(payload) {
     sf4: payload.sf4 || null,
   };
   // Write directly to Supabase — no callSheet, no Google Sheets
-  return sbFetch('predictions?on_conflict=name,type,match_id', {
+  const result = await sbFetch('predictions?on_conflict=name,type,match_id', {
     method:  'POST',
     headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
     body:    row,
     throwOnError: true,
   });
+  // Some Supabase/PostgREST deployments can leave newly-added columns out of
+  // the upsert merge path until schema cache settles. Persist the penalty
+  // winner with an explicit PATCH as well, so the knockout dropdown is saved.
+  if(Object.prototype.hasOwnProperty.call(payload, 'penWinner')) {
+    await sbFetch(
+      'predictions?name=eq.' + encodeURIComponent(row.name) +
+      '&type=eq.' + encodeURIComponent(row.type) +
+      '&match_id=eq.' + encodeURIComponent(row.match_id),
+      {
+        method: 'PATCH',
+        headers: { 'Prefer': 'return=minimal' },
+        body: { pen_winner: row.pen_winner },
+        throwOnError: true,
+      }
+    );
+  }
+  return result;
 }
 
 // ════════════════════════════════════════════════════════════
