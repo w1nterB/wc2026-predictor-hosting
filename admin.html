@@ -1155,7 +1155,6 @@ select.portal-input option{background:#fff;}
               </div>
               <div class="res-team" id="res-team-away"></div>
             </div>
-            <!-- Penalties — shown only for KO matches with level scores -->
             <div id="pen-section" style="display:none;margin-top:12px;padding:12px 14px;background:var(--surface-raised,#f8f9fa);border:1px solid var(--border);border-radius:8px;">
               <div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;margin-bottom:10px;">PENALTIES (if level after 90 mins)</div>
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
@@ -1167,12 +1166,8 @@ select.portal-input option{background:#fff;}
               </div>
               <div style="font-size:11px;color:var(--t3);margin-bottom:6px;">Winner on penalties:</div>
               <div style="display:flex;gap:12px;">
-                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-                  <input type="radio" name="pen-winner" id="pen-winner-home" value="home"> <span id="pen-winner-home-label">Home</span>
-                </label>
-                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
-                  <input type="radio" name="pen-winner" id="pen-winner-away" value="away"> <span id="pen-winner-away-label">Away</span>
-                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="pen-winner" id="pen-winner-home" value="home"> <span id="pen-winner-home-label">Home</span></label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"><input type="radio" name="pen-winner" id="pen-winner-away" value="away"> <span id="pen-winner-away-label">Away</span></label>
               </div>
             </div>
             <div style="margin-top:14px;display:flex;gap:10px;align-items:center;">
@@ -1425,6 +1420,8 @@ async function sbFetch(path, opts = {}) {
     'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
     'Content-Type':  'application/json',
     'Prefer':        opts.prefer || 'return=minimal',
+    'Range-Unit':    'items',
+    'Range':         opts.range  || '0-9999',
   };
   try {
     const res = await fetch(url, {
@@ -1474,7 +1471,7 @@ async function loadAllFromSupabase() {
     const [cfgRows, userRows, resultRows, bracketRows, predRows] = await Promise.all([
       sbFetch('config?select=key,value'),
       sbFetch('users?select=name,fn&order=name'),
-      sbFetch('results?select=match_id,home_score,away_score,pen_home,pen_away,pen_winner&order=match_id'),
+      sbFetch('results?select=match_id,home_score,away_score,pen_home,pen_away,pen_winner'),
       sbFetch('bracket?select=match_id,home_name,away_name,home_score,away_score'),
       sbFetch('predictions?select=name,type,match_id,home_score,away_score,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
     ]);
@@ -1576,11 +1573,7 @@ function savePhases() { syncAllConfig(); }
 function saveParticipantPins() { syncAllConfig(); }
 
 async function syncResultToSheet(matchId, home, away, penHome=null, penAway=null, penWinner=null) {
-  await sbUpsert('results', {
-    match_id: matchId,
-    home_score: home, away_score: away,
-    pen_home: penHome, pen_away: penAway, pen_winner: penWinner
-  }, 'match_id');
+  await sbUpsert('results', { match_id: matchId, home_score: home, away_score: away, pen_home: penHome, pen_away: penAway, pen_winner: penWinner }, 'match_id');
 }
 
 async function syncBracketToSheet() {
@@ -1956,12 +1949,11 @@ async function saveResult(){
   const h=document.getElementById('res-score-home').value, a=document.getElementById('res-score-away').value;
   if(!id||h===''||a===''){showToast('Enter both scores',true);return;}
   const hInt=parseInt(h), aInt=parseInt(a);
-  // Pen data — only relevant for KO draws
-  const penSec = document.getElementById('pen-section');
-  const penVis = penSec && penSec.style.display !== 'none';
-  const penH   = penVis ? parseInt(document.getElementById('pen-score-home').value)||null : null;
-  const penA   = penVis ? parseInt(document.getElementById('pen-score-away').value)||null : null;
-  const penW   = penVis ? (document.querySelector('input[name="pen-winner"]:checked')?.value||null) : null;
+  const penSec=document.getElementById('pen-section');
+  const penVis=penSec&&penSec.style.display!=='none';
+  const penH=penVis?parseInt(document.getElementById('pen-score-home').value)||null:null;
+  const penA=penVis?parseInt(document.getElementById('pen-score-away').value)||null:null;
+  const penW=penVis?(document.querySelector('input[name="pen-winner"]:checked')?.value||null):null;
   const st = document.getElementById('result-save-status');
   if(st) st.textContent = 'Saving…';
   results[id]={home:hInt,away:aInt,pen_home:penH,pen_away:penA,pen_winner:penW};
@@ -2011,7 +2003,7 @@ function renderMatchResultsList() {
     row.className = 'entered-result-row';
     row.innerHTML =
       '<span class="entered-result-home">' + esc(m.home) + '</span>' +
-      '<span class="entered-result-score">' + r.home + ' – ' + r.away + (r.pen_winner ? ' (aet)' : '') + '</span>' + (r.pen_winner ? '<span style="font-size:10px;color:var(--t3);margin-left:4px;">pens: '+r.pen_home+'–'+r.pen_away+'</span>' : '') +
+      '<span class="entered-result-score">' + r.home + '–' + r.away + (r.pen_winner?' (aet)':'') + '</span>' + (r.pen_winner?'<span style="font-size:10px;color:var(--t3);margin-left:4px;">pens: '+r.pen_home+'–'+r.pen_away+'</span>':'') +
       '<span class="entered-result-away">' + esc(m.away) + '</span>';
     const editBtn = document.createElement('button');
     editBtn.className = 'entered-result-edit';
@@ -2039,16 +2031,6 @@ function loadResultForEdit(id) {
   if(r) {
     document.getElementById('res-score-home').value = r.home;
     document.getElementById('res-score-away').value = r.away;
-    // Pre-fill pen fields if this match had penalties
-    setTimeout(()=>{
-      checkPenField();
-      if(r.pen_home !== null){ document.getElementById('pen-score-home').value = r.pen_home; }
-      if(r.pen_away !== null){ document.getElementById('pen-score-away').value = r.pen_away; }
-      if(r.pen_winner){
-        const radio = document.querySelector('input[name="pen-winner"][value="'+r.pen_winner+'"]');
-        if(radio) radio.checked = true;
-      }
-    }, 50);
   }
   area.style.display = 'block';
   if(delBtn) delBtn.style.display = r ? '' : 'none';
@@ -2180,25 +2162,25 @@ function changeAdminPin() {
 }
 
 function checkPenField(){
-  const id  = document.getElementById('admin-match-select')?.value;
-  const m   = ALL_MATCHES.find(x => x.id === id);
-  const isKO = m && !m.group;
-  const hv  = parseInt(document.getElementById('res-score-home')?.value);
-  const av  = parseInt(document.getElementById('res-score-away')?.value);
-  const sec = document.getElementById('pen-section');
-  if(!sec) return;
-  if(isKO && !isNaN(hv) && !isNaN(av) && hv === av){
-    const bt = bracketTeams[id]||{};
-    const hN = bt.home||m.home; const aN = bt.away||m.away;
-    document.getElementById('pen-label-home').textContent = hN;
-    document.getElementById('pen-label-away').textContent = aN;
-    document.getElementById('pen-winner-home-label').textContent = hN;
-    document.getElementById('pen-winner-away-label').textContent = aN;
-    sec.style.display = 'block';
+  const id=document.getElementById('admin-match-select')?.value;
+  const m=ALL_MATCHES.find(x=>x.id===id);
+  const isKO=m&&!m.group;
+  const hv=parseInt(document.getElementById('res-score-home')?.value);
+  const av=parseInt(document.getElementById('res-score-away')?.value);
+  const sec=document.getElementById('pen-section');
+  if(!sec)return;
+  if(isKO&&!isNaN(hv)&&!isNaN(av)&&hv===av){
+    const bt=bracketTeams[id]||{};
+    const hN=bt.home||m.home;const aN=bt.away||m.away;
+    document.getElementById('pen-label-home').textContent=hN;
+    document.getElementById('pen-label-away').textContent=aN;
+    document.getElementById('pen-winner-home-label').textContent=hN;
+    document.getElementById('pen-winner-away-label').textContent=aN;
+    sec.style.display='block';
   } else {
-    sec.style.display = 'none';
-    document.getElementById('pen-score-home').value = '';
-    document.getElementById('pen-score-away').value = '';
+    sec.style.display='none';
+    document.getElementById('pen-score-home').value='';
+    document.getElementById('pen-score-away').value='';
     document.querySelectorAll('input[name="pen-winner"]').forEach(function(r){r.checked=false;});
   }
 }
@@ -2807,12 +2789,11 @@ async function saveResult(){
   const h=document.getElementById('res-score-home').value, a=document.getElementById('res-score-away').value;
   if(!id||h===''||a===''){showToast('Enter both scores',true);return;}
   const hInt=parseInt(h), aInt=parseInt(a);
-  // Pen data — only relevant for KO draws
-  const penSec = document.getElementById('pen-section');
-  const penVis = penSec && penSec.style.display !== 'none';
-  const penH   = penVis ? parseInt(document.getElementById('pen-score-home').value)||null : null;
-  const penA   = penVis ? parseInt(document.getElementById('pen-score-away').value)||null : null;
-  const penW   = penVis ? (document.querySelector('input[name="pen-winner"]:checked')?.value||null) : null;
+  const penSec=document.getElementById('pen-section');
+  const penVis=penSec&&penSec.style.display!=='none';
+  const penH=penVis?parseInt(document.getElementById('pen-score-home').value)||null:null;
+  const penA=penVis?parseInt(document.getElementById('pen-score-away').value)||null:null;
+  const penW=penVis?(document.querySelector('input[name="pen-winner"]:checked')?.value||null):null;
   const st = document.getElementById('result-save-status');
   if(st) st.textContent = 'Saving…';
   results[id]={home:hInt,away:aInt,pen_home:penH,pen_away:penA,pen_winner:penW};
@@ -2860,7 +2841,7 @@ function renderMatchResultsList() {
     row.className = 'entered-result-row';
     row.innerHTML =
       '<span class="entered-result-home">' + esc(m.home) + '</span>' +
-      '<span class="entered-result-score">' + r.home + ' – ' + r.away + (r.pen_winner ? ' (aet)' : '') + '</span>' + (r.pen_winner ? '<span style="font-size:10px;color:var(--t3);margin-left:4px;">pens: '+r.pen_home+'–'+r.pen_away+'</span>' : '') +
+      '<span class="entered-result-score">' + r.home + '–' + r.away + (r.pen_winner?' (aet)':'') + '</span>' + (r.pen_winner?'<span style="font-size:10px;color:var(--t3);margin-left:4px;">pens: '+r.pen_home+'–'+r.pen_away+'</span>':'') +
       '<span class="entered-result-away">' + esc(m.away) + '</span>';
     const editBtn = document.createElement('button');
     editBtn.className = 'entered-result-edit';
@@ -2887,16 +2868,6 @@ function loadResultForEdit(id) {
   if(r) {
     document.getElementById('res-score-home').value = r.home;
     document.getElementById('res-score-away').value = r.away;
-    // Pre-fill pen fields if this match had penalties
-    setTimeout(()=>{
-      checkPenField();
-      if(r.pen_home !== null){ document.getElementById('pen-score-home').value = r.pen_home; }
-      if(r.pen_away !== null){ document.getElementById('pen-score-away').value = r.pen_away; }
-      if(r.pen_winner){
-        const radio = document.querySelector('input[name="pen-winner"][value="'+r.pen_winner+'"]');
-        if(radio) radio.checked = true;
-      }
-    }, 50);
   }
   area.style.display = 'block';
   if(delBtn) delBtn.style.display = r ? '' : 'none';
@@ -3381,11 +3352,7 @@ async function syncAllConfig() {
   await Promise.all([syncConfigToSheet(), syncParticipantsToSupabase()]);
 }
 async function syncResultToSheet(matchId, home, away, penHome=null, penAway=null, penWinner=null) {
-  await sbUpsert('results', {
-    match_id: matchId,
-    home_score: home, away_score: away,
-    pen_home: penHome, pen_away: penAway, pen_winner: penWinner
-  }, 'match_id');
+  await sbUpsert('results', { match_id: matchId, home_score: home, away_score: away, pen_home: penHome, pen_away: penAway, pen_winner: penWinner }, 'match_id');
 }
 async function syncBracketToSheet() {
   const allIds = new Set([...Object.keys(bracketResults), ...Object.keys(bracketTeams)]);
@@ -3415,7 +3382,7 @@ async function initAdmin() {
       venue:r.venue,home:r.home,away:r.away,group:r.group_name||'',hf:r.hf||'',af:r.af||''}));
   const [cfgRows,userRows,resultRows,bracketRows]=await Promise.all([
     sbFetch('config?select=key,value'),sbFetch('users?select=name,fn&order=name'),
-    sbFetch('results?select=match_id,home_score,away_score,pen_home,pen_away,pen_winner&order=match_id'),
+    sbFetch('results?select=match_id,home_score,away_score,pen_home,pen_away,pen_winner'),
     sbFetch('bracket?select=match_id,home_name,away_name,home_score,away_score'),
   ]);
   if(Array.isArray(cfgRows)) cfgRows.forEach(r=>{
@@ -3520,33 +3487,18 @@ async function generateMatchCard() {
     try { h2h = typeof preview.h2h === 'string' ? JSON.parse(preview.h2h) : preview.h2h; } catch(e) {}
   }
 
-  // ── Enrich H2H with 2026 group stage results if these teams met ──
-  const bt2 = bracketTeams[match.id]||{};
-  const realHome = bt2.home || match.home;
-  const realAway = bt2.away || match.away;
-  const gs2026 = ALL_MATCHES.filter(gs => {
-    if(!gs.group) return false; // group stage only
-    const r = results[gs.id];
-    if(!r) return false;
-    const teamsMatch = (gs.home===realHome && gs.away===realAway) ||
-                       (gs.home===realAway && gs.away===realHome);
-    return teamsMatch;
+  // Enrich H2H with 2026 group stage results
+  const bt2=bracketTeams[match.id]||{};
+  const realHome=bt2.home||match.home; const realAway=bt2.away||match.away;
+  ALL_MATCHES.filter(gs=>gs.group&&results[gs.id]).forEach(gs=>{
+    if((gs.home===realHome&&gs.away===realAway)||(gs.home===realAway&&gs.away===realHome)){
+      const gr=results[gs.id];
+      const isHF=gs.home===realHome;
+      const hg=isHF?gr.home:gr.away; const ag=isHF?gr.away:gr.home;
+      const penStr=gr.pen_winner?' (aet, pens '+gr.pen_home+'–'+gr.pen_away+')':'';
+      h2h.unshift({year:'2026',event:'FIFA World Cup — Group Stage',result:realHome+' '+hg+'–'+ag+' '+realAway+penStr,note:'WC2026 group stage result'});
+    }
   });
-  if(gs2026.length > 0) {
-    gs2026.forEach(gs => {
-      const r = results[gs.id];
-      const isHomeFirst = gs.home === realHome;
-      const hg = isHomeFirst ? r.home : r.away;
-      const ag = isHomeFirst ? r.away : r.home;
-      const penStr = r.pen_winner ? ' (aet, pens '+r.pen_home+'–'+r.pen_away+')' : '';
-      h2h.unshift({
-        year: '2026',
-        event: 'FIFA World Cup — Group Stage',
-        result: realHome + ' ' + hg + '–' + ag + ' ' + realAway + penStr,
-        note: 'WC2026 group stage result'
-      });
-    });
-  }
 
   // Win/draw tally
   const homeLC = match.home.toLowerCase();
