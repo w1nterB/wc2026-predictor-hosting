@@ -919,10 +919,7 @@ select.portal-input option{background:#fff;}
   border-radius:8px;padding:10px 14px;
   font-size:13px;
 }
-.entered-result-main {
-  display:grid;grid-template-columns:1fr auto 1fr auto;
-  align-items:center;gap:10px;
-}
+.entered-result-main{display:grid;grid-template-columns:1fr auto 1fr 60px;align-items:center;gap:8px;}
 .entered-result-home { font-weight:600;color:var(--t1);text-align:right; }
 .entered-result-away { font-weight:600;color:var(--t1); }
 .entered-result-score {
@@ -2013,12 +2010,17 @@ function renderMatchResultsList() {
     const row = document.createElement('div');
     row.className = 'entered-result-row';
     const rBtm = bracketTeams[m.id]||{};
-    const penLine1 = r.pen_winner ? '<div style="font-size:10px;color:var(--t3);text-align:center;">pens: '+r.pen_home+'–'+r.pen_away+' &middot; '+(r.pen_winner==='home'?(rBtm.home||m.home):(rBtm.away||m.away))+' win</div>' : '';
+    const _hName1 = rBtm.home||m.home; const _aName1 = rBtm.away||m.away;
+    const _winner1 = r.pen_winner==='home'?_hName1:r.pen_winner==='away'?_aName1:null;
+    const _hw1 = r.pen_winner==='home'; const _aw1 = r.pen_winner==='away';
+    const penLine1 = r.pen_winner
+      ? '<div style="font-size:10px;color:var(--teal-mid);text-align:center;font-weight:600;margin-top:3px;">🏆 '+esc(_winner1)+' win on pens ('+r.pen_home+'–'+r.pen_away+')</div>'
+      : '';
     row.innerHTML =
       '<div class="entered-result-main">' +
-        '<span class="entered-result-home">' + esc(rBtm.home||m.home) + '</span>' +
+        '<span class="entered-result-home" style="'+(r.pen_winner==='home'?'color:var(--teal-mid);font-weight:700;':'')+'">' + esc(_hName1) + '</span>' +
         '<span class="entered-result-score">' + r.home + '–' + r.away + (r.pen_winner?' <span style="font-size:11px;color:var(--t3);">(aet)</span>':'') + '</span>' +
-        '<span class="entered-result-away">' + esc(rBtm.away||m.away) + '</span>' +
+        '<span class="entered-result-away" style="'+(r.pen_winner==='away'?'color:var(--teal-mid);font-weight:700;':'')+'">' + esc(_aName1) + '</span>' +
         '<button class="entered-result-edit" data-mid="' + m.id + '" onclick="loadResultForEdit(this.dataset.mid)">Edit</button>' +
       '</div>' + penLine1;
     wrap.appendChild(row);
@@ -2878,12 +2880,17 @@ function renderMatchResultsList() {
     const row = document.createElement('div');
     row.className = 'entered-result-row';
     const rBtm = bracketTeams[m.id]||{};
-    const penLine1 = r.pen_winner ? '<div style="font-size:10px;color:var(--t3);text-align:center;">pens: '+r.pen_home+'–'+r.pen_away+' &middot; '+(r.pen_winner==='home'?(rBtm.home||m.home):(rBtm.away||m.away))+' win</div>' : '';
+    const _hName1 = rBtm.home||m.home; const _aName1 = rBtm.away||m.away;
+    const _winner1 = r.pen_winner==='home'?_hName1:r.pen_winner==='away'?_aName1:null;
+    const _hw1 = r.pen_winner==='home'; const _aw1 = r.pen_winner==='away';
+    const penLine1 = r.pen_winner
+      ? '<div style="font-size:10px;color:var(--teal-mid);text-align:center;font-weight:600;margin-top:3px;">🏆 '+esc(_winner1)+' win on pens ('+r.pen_home+'–'+r.pen_away+')</div>'
+      : '';
     row.innerHTML =
       '<div class="entered-result-main">' +
-        '<span class="entered-result-home">' + esc(rBtm.home||m.home) + '</span>' +
+        '<span class="entered-result-home" style="'+(r.pen_winner==='home'?'color:var(--teal-mid);font-weight:700;':'')+'">' + esc(_hName1) + '</span>' +
         '<span class="entered-result-score">' + r.home + '–' + r.away + (r.pen_winner?' <span style="font-size:11px;color:var(--t3);">(aet)</span>':'') + '</span>' +
-        '<span class="entered-result-away">' + esc(rBtm.away||m.away) + '</span>' +
+        '<span class="entered-result-away" style="'+(r.pen_winner==='away'?'color:var(--teal-mid);font-weight:700;':'')+'">' + esc(_aName1) + '</span>' +
         '<button class="entered-result-edit" data-mid="' + m.id + '" onclick="loadResultForEdit(this.dataset.mid)">Edit</button>' +
       '</div>' + penLine1;
     wrap.appendChild(row);
