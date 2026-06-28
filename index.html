@@ -1681,6 +1681,7 @@ async function postToSheet(payload) {
     runner_up:  payload.runnerUp      || null,
     top_scorer: payload.topScorer     || null,
     surprise:   payload.surprise      || null,
+    pen_winner: Object.prototype.hasOwnProperty.call(payload, 'penWinner') ? (payload.penWinner || null) : null,
     sf1: payload.sf1 || null,
     sf2: payload.sf2 || null,
     sf3: payload.sf3 || null,
