@@ -1562,8 +1562,7 @@ async function loadAllFromSupabase() {
     // Apply results
     if(Array.isArray(resultRows)) {
       resultRows.forEach(r => {
-        results[r.match_id] = { home: r.home_score, away: r.away_score,
-          pen_home: r.pen_home??null, pen_away: r.pen_away??null, pen_winner: r.pen_winner??null };
+        results[r.match_id] = { home: r.home_score, away: r.away_score, pen_home: r.pen_home??null, pen_away: r.pen_away??null, pen_winner: r.pen_winner??null };
       });
     }
 
@@ -1640,7 +1639,6 @@ async function postToSheet(payload) {
     sf2: payload.sf2 || null,
     sf3: payload.sf3 || null,
     sf4: payload.sf4 || null,
-    pen_winner: payload.penWinner || null,
   };
   // Write directly to Supabase — no callSheet, no Google Sheets
   return sbFetch('predictions?on_conflict=name,type,match_id', {
@@ -1894,16 +1892,9 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
   const card = document.createElement('div');
   card.className = `match-card${hr?' locked-card has-result':locked?' locked-card':''}`;
   card.id = `match-${m.id}`;
-  const scoreDisplay = (() => {
-    if(!hr) return '<div class="match-vs">VS</div>';
-    const _r=results[m.id];
-    let d=`<div class="result-score">${_r.home} &ndash; ${_r.away}</div>`;
-    if(_r.pen_winner){
-      const pw=_r.pen_winner==='home'?dispHome:dispAway;
-      d+=`<div style="font-size:10px;color:var(--t3);text-align:center;margin-top:2px;">aet &middot; ${esc(pw)} on pens (${_r.pen_home}&ndash;${_r.pen_away})</div>`;
-    }
-    return d;
-  })();
+  const scoreDisplay = hr
+    ? `<div class="result-score">${results[m.id].home} &ndash; ${results[m.id].away}</div>`
+    : `<div class="match-vs">VS</div>`;
   // If match is locked by time (not result) and user has a saved prediction, show it
   const userPred = !hr && locked && currentUser && predictions[currentUser]?.[m.id];
   const timeStr = fmtMatchTime(m.id);
@@ -1916,26 +1907,6 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
   const dispHome = bt.home || (m.home !== 'To be announced' ? m.home : 'TBD');
   const dispAway = bt.away || (m.away !== 'To be announced' ? m.away : 'TBD');
   card.innerHTML = `<div class="team-side"><span class="team-flag">${hf}</span><span class="team-name">${dispHome}${hStar}</span></div><div class="match-meta"><div class="match-time">${timeStr}</div>${scoreDisplay}</div><div class="team-side right"><span class="team-name">${dispAway}${aStar}</span><span class="team-flag">${af}</span></div><div class="prediction-row"><div class="score-input-wrap" style="justify-content:flex-start;"><label>${dispHome}</label><input class="score-input" id="h-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}></div><span class="score-sep">&ndash;</span><div class="score-input-wrap" style="justify-content:flex-end;"><input class="score-input" id="a-${m.id}" type="number" min="0" max="20" placeholder="&ndash;" ${locked?'disabled':''}><label>${dispAway}</label></div><div class="match-save-status" id="save-${m.id}"></div></div>`;
-  // KO match pen picker — shows when user enters a draw
-  if(!locked && !m.group){
-    const penWrap=document.createElement('div');
-    penWrap.id='pen-wrap-'+m.id;
-    penWrap.style.cssText='margin-top:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:none;';
-    penWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;margin-bottom:6px;">IF DRAW AFTER 90 MINS — WHO WINS ON PENS?</div>'+
-      '<select id="pen-winner-'+m.id+'" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--page);font-size:13px;color:var(--t1);">'+
-      '<option value="">— Select pen winner —</option>'+
-      '<option value="home">'+esc(dispHome)+'</option>'+
-      '<option value="away">'+esc(dispAway)+'</option>'+
-      '</select>';
-    card.appendChild(penWrap);
-    const _sp=()=>{
-      const hv=parseInt(card.querySelector('#h-'+m.id)?.value);
-      const av=parseInt(card.querySelector('#a-'+m.id)?.value);
-      penWrap.style.display=(!isNaN(hv)&&!isNaN(av)&&hv===av)?'block':'none';
-    };
-    card.querySelector('#h-'+m.id)?.addEventListener('input',_sp);
-    card.querySelector('#a-'+m.id)?.addEventListener('input',_sp);
-  }
   // Populate saved prediction immediately — avoids debounce timing issues
   if(currentUser && predictions[currentUser]?.[m.id]) {
     const saved = predictions[currentUser][m.id];
@@ -1943,13 +1914,6 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
     const aIn = card.querySelector('#a-'+m.id);
     if(hIn && saved.home !== undefined) { hIn.value = saved.home; }
     if(aIn && saved.away !== undefined) { aIn.value = saved.away; }
-    if(saved.home !== undefined && saved.home === saved.away){
-      const pw=card.querySelector('#pen-wrap-'+m.id);if(pw)pw.style.display='block';
-    }
-    if(saved.pen_winner){
-      const ps=document.getElementById('pen-winner-'+m.id);
-      if(ps) ps.value=saved.pen_winner;
-    }
   }
   // Add preview panel for all rounds (group + knockout)
   if(!skipPreview) {
@@ -2004,8 +1968,10 @@ function renderMatches(){
         } else { predBadge = '<div class="rmp-my-pred rmp-pred-none">No prediction</div>'; }
       }
       const hf=m.hf||''; const af=m.af||'';
-      const penLabel = r.pen_winner ? `<span class="rmp-pen">(aet · pens ${r.pen_home}–${r.pen_away})</span>` : '';
-      pill.innerHTML = `<div class="rmp-teams"><span class="rmp-team">${hf} ${m.home}</span><span class="rmp-score">${r.home}&thinsp;–&thinsp;${r.away}</span><span class="rmp-team right">${m.away} ${af}</span></div>${penLabel}<div class="rmp-meta">${fmtMatchTime(m.id)}</div>${predBadge}`;
+      const rBt=bracketTeams[m.id]||{};
+      const rmpHome=rBt.home||m.home; const rmpAway=rBt.away||m.away;
+      const penLbl=r.pen_winner?`<div class="rmp-pen">aet &middot; pens ${r.pen_home}–${r.pen_away}</div>`:'';
+      pill.innerHTML = `<div class="rmp-teams"><span class="rmp-team">${hf} ${esc(rmpHome)}</span><span class="rmp-score">${r.home}&thinsp;–&thinsp;${r.away}</span><span class="rmp-team right">${esc(rmpAway)} ${af}</span></div>${penLbl}<div class="rmp-meta">${fmtMatchTime(m.id)}</div>${predBadge}`;
       recentScroll.appendChild(pill);
     });
   } else { recentStrip.style.display = 'none'; }
@@ -2587,11 +2553,6 @@ function loadPredictions(name){
     }
   });
   updateSubmitState();
-  // Restore pen_winner selections for KO match pickers
-  ALL_MATCHES.filter(m=>!m.group).forEach(m=>{
-    const ps=document.getElementById('pen-winner-'+m.id);
-    if(ps&&predictions[name]?.[m.id]?.pen_winner) ps.value=predictions[name][m.id].pen_winner;
-  });
 }
 
 function clearInputs(){
@@ -2784,13 +2745,7 @@ async function submitPredictions(){
     if(results[m.id]||isMatchLocked(m.id)) return;
     const h=document.getElementById(`h-${m.id}`),a=document.getElementById(`a-${m.id}`);
     if(h&&a&&h.value!==''&&a.value!==''){
-      const hp=parseInt(h.value),ap=parseInt(a.value);
-      const pred={home:hp,away:ap};
-      if(!m.group&&hp===ap){
-        const ps=document.getElementById('pen-winner-'+m.id);
-        if(ps&&ps.value) pred.pen_winner=ps.value;
-      }
-      matchPreds[m.id]=pred;
+      matchPreds[m.id]={home:parseInt(h.value),away:parseInt(a.value)};
       predictions[name][m.id]=matchPreds[m.id];
     }
   });
@@ -2820,7 +2775,6 @@ async function submitPredictions(){
       awayTeam:  m ? m.away : '',
       homeScore: pred.home,
       awayScore: pred.away,
-      penWinner: pred.pen_winner || null,
     }));
   });
   // Show saving state
@@ -2913,15 +2867,9 @@ function scoreMatch(pred,actual){
 }
 function scoreMatchBreakdown(pred,actual){
   if(!pred||!actual) return {result:0,score:0,total:0};
+  const result = res(pred.home,pred.away)===res(actual.home,actual.away)?3:0;
   const homeHit=pred.home===actual.home, awayHit=pred.away===actual.away;
-  const score=(homeHit&&awayHit)?6:(homeHit||awayHit)?3:0;
-  let result=0;
-  if(actual.pen_winner){
-    // KO draw: result pts only if predicted draw AND correct pen winner
-    if(res(pred.home,pred.away)==='D'&&pred.pen_winner&&pred.pen_winner===actual.pen_winner) result=3;
-  } else {
-    result=res(pred.home,pred.away)===res(actual.home,actual.away)?3:0;
-  }
+  const score = (homeHit&&awayHit)?6:(homeHit||awayHit)?3:0;
   return {result,score,total:result+score};
 }
 function calcScores(){
@@ -3438,8 +3386,9 @@ function renderBracket() {
       const r = results[m.id] || bracketResults[m.id];
       const card = document.createElement('div');
       card.className = 'bracket-match' + (r ? ' has-result' : '');
-      const homeIsWinner = r && Number(r.home) > Number(r.away);
-      const awayIsWinner = r && Number(r.away) > Number(r.home);
+      // Winner: score comparison OR pen_winner for draws
+      const homeIsWinner = r && (Number(r.home) > Number(r.away) || (Number(r.home)===Number(r.away) && r.pen_winner==='home'));
+      const awayIsWinner = r && (Number(r.away) > Number(r.home) || (Number(r.home)===Number(r.away) && r.pen_winner==='away'));
       // bracketTeams (admin-set) takes priority over CSV placeholders
       // CSV has real names only for group stage; KO rounds have codes like "2A", "1C", "3ABCDF"
       const btHome = bracketTeams[m.id]?.home || '';
@@ -3461,6 +3410,7 @@ function renderBracket() {
           <span class="bt-name">${awayDisplay?esc(awayDisplay):'<span class="bracket-slot">TBD</span>'}</span>
           ${r?`<span class="bt-score">${r.away}</span>`:''}
         </div>
+        ${r&&r.pen_winner?`<div style="padding:2px 10px 0;font-size:9px;color:var(--t3);text-align:center;">aet &middot; pens ${r.pen_home}–${r.pen_away}</div>`:''}
         <div style="padding:4px 10px 6px;font-size:10px;color:var(--t4);font-family:'DM Mono',monospace;">${fmtDate(m.utc)}</div>`;
       matchesDiv.appendChild(card);
     });
