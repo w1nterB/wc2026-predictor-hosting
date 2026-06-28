@@ -1313,7 +1313,7 @@ select.portal-input option{background:#fff;}
       </div>
 
       <div class="page-section">
-        <div class="section-label">Match predictions <span class="s-badge sb-live" id="match-phase-badge">Group stage live</span></div>
+        <div class="section-label">Match predictions <span class="s-badge sb-live" id="match-phase-badge">Round of 32 now LIVE</span></div>
         <div style="font-size:11px;color:var(--t3);margin-bottom:14px;">Pick the score for each match — <strong style="color:var(--teal-mid);">3 pts</strong> for correct result · <strong style="color:var(--teal-mid);">6 pts</strong> for exact score · <strong style="color:var(--teal-mid);">9 pts max</strong> per game · locks 1 hr before kickoff · specials close 18 Jun</div>
 
         <div class="view-mode-bar" id="view-mode-bar">
@@ -1563,7 +1563,7 @@ async function loadAllFromSupabase() {
       sbFetch('users?select=name,fn,country&order=name'),
       sbFetch('results?select=match_id,home_score,away_score,pen_home,pen_away,pen_winner'),
       sbFetch('bracket?select=match_id,home_name,away_name,home_score,away_score'),
-      sbFetch('predictions?select=name,type,match_id,home_score,away_score,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
+      sbFetch('predictions?select=name,type,match_id,home_score,away_score,pen_winner,winner,runner_up,top_scorer,surprise,sf1,sf2,sf3,sf4'),
       sbFetch('matches?select=*&order=num'),
     ]);
     const participantRows = userRows;
@@ -1996,7 +1996,7 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
     const penWrap=document.createElement('div');
     penWrap.id='pen-wrap-'+m.id;
     penWrap.style.cssText='margin-top:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:none;';
-    penWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;margin-bottom:6px;">IF DRAW AFTER 90 MINS — WHO WINS ON PENS?</div>'+
+    penWrap.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;margin-bottom:6px;">IF DRAW AFTER 90 MINUTES + EXTRA TIME — WHO WINS ON PENS?</div>'+
       '<select id="pen-winner-'+m.id+'" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--page);font-size:13px;color:var(--t1);">'+
       '<option value="">— Select pen winner —</option>'+
       '<option value="home">'+esc(dispHome)+'</option>'+
@@ -4065,7 +4065,7 @@ function updatePhaseBadges() {
 
   const matchBadge = document.getElementById('match-phase-badge');
   if(matchBadge) {
-    matchBadge.textContent = groupOpen ? 'Group stage live' : 'Closed';
+    matchBadge.textContent = groupOpen ? 'Round of 32 now LIVE' : 'Closed';
     matchBadge.className = 's-badge ' + (groupOpen ? 'sb-live' : 'sb-done');
   }
 
@@ -4075,7 +4075,7 @@ function updatePhaseBadges() {
   const anyOpen = specialsOpen || groupOpen;
   if(statusPill) statusPill.className = 'sb-status ' + (anyOpen ? 'live' : 'closed');
   if(statusDot) statusDot.className = 'live-dot ' + (anyOpen ? 'green' : 'grey');
-  if(statusText) statusText.textContent = groupOpen ? 'Group live' : specialsOpen ? 'Specials open' : 'Closed';
+  if(statusText) statusText.textContent = groupOpen ? 'Round of 32 now LIVE' : specialsOpen ? 'Specials open' : 'Closed';
 
   updateSubmitState();
 }
