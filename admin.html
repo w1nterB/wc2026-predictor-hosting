@@ -2009,10 +2009,11 @@ function renderMatchResultsList() {
     const r = results[m.id];
     const row = document.createElement('div');
     row.className = 'entered-result-row';
+    const rBtm = bracketTeams[m.id]||{};
     row.innerHTML =
-      '<span class="entered-result-home">' + esc(m.home) + '</span>' +
+      '<span class="entered-result-home">' + esc(rBtm.home||m.home) + '</span>' +
       '<span class="entered-result-score">' + r.home + '–' + r.away + (r.pen_winner?' (aet)':'') + '</span>' + (r.pen_winner?'<span style="font-size:10px;color:var(--t3);margin-left:4px;">pens: '+r.pen_home+'–'+r.pen_away+'</span>':'') +
-      '<span class="entered-result-away">' + esc(m.away) + '</span>';
+      '<span class="entered-result-away">' + esc(rBtm.away||m.away) + '</span>';
     const editBtn = document.createElement('button');
     editBtn.className = 'entered-result-edit';
     editBtn.textContent = 'Edit';
@@ -2874,10 +2875,11 @@ function renderMatchResultsList() {
     const r = results[m.id];
     const row = document.createElement('div');
     row.className = 'entered-result-row';
+    const rBtm = bracketTeams[m.id]||{};
     row.innerHTML =
-      '<span class="entered-result-home">' + esc(m.home) + '</span>' +
+      '<span class="entered-result-home">' + esc(rBtm.home||m.home) + '</span>' +
       '<span class="entered-result-score">' + r.home + '–' + r.away + (r.pen_winner?' (aet)':'') + '</span>' + (r.pen_winner?'<span style="font-size:10px;color:var(--t3);margin-left:4px;">pens: '+r.pen_home+'–'+r.pen_away+'</span>':'') +
-      '<span class="entered-result-away">' + esc(m.away) + '</span>';
+      '<span class="entered-result-away">' + esc(rBtm.away||m.away) + '</span>';
     const editBtn = document.createElement('button');
     editBtn.className = 'entered-result-edit';
     editBtn.textContent = 'Edit';
