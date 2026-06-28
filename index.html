@@ -1513,6 +1513,15 @@ async function sbFetch(path, opts = {}) {
     });
     const text = await res.text();
     if(!res.ok) {
+      console.error('Supabase error', res.status, path, text);
+      if(opts.throwOnError) {
+        let detail = text;
+        try {
+          const parsed = JSON.parse(text);
+          detail = parsed.message || parsed.details || text;
+        } catch(e) {}
+        throw new Error(detail || ('Supabase request failed: ' + res.status));
+      }
       console.error('Supabase error', res.status, text);
     }
     // Return parsed JSON whenever we have a body (GET or POST with return=representation)
@@ -1682,6 +1691,7 @@ async function postToSheet(payload) {
     method:  'POST',
     headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
     body:    row,
+    throwOnError: true,
   });
 }
 
