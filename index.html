@@ -1639,6 +1639,7 @@ async function postToSheet(payload) {
     sf2: payload.sf2 || null,
     sf3: payload.sf3 || null,
     sf4: payload.sf4 || null,
+    pen_winner: payload.penWinner || null,
   };
   // Write directly to Supabase — no callSheet, no Google Sheets
   return sbFetch('predictions?on_conflict=name,type,match_id', {
@@ -1915,6 +1916,37 @@ function buildMatchCard(m, forceDisabled, skipPreview) {
     if(hIn && saved.home !== undefined) { hIn.value = saved.home; }
     if(aIn && saved.away !== undefined) { aIn.value = saved.away; }
   }
+  // Pen winner picker for KO matches — shows when user predicts a draw
+  if(!locked && !m.group) {
+    const penWrap = document.createElement('div');
+    penWrap.id = 'pen-wrap-' + m.id;
+    penWrap.style.cssText = 'margin-top:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;display:none;';
+    penWrap.innerHTML =
+      '<div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;margin-bottom:6px;">IF DRAW AFTER 90 MINS — WHO WINS ON PENS?</div>' +
+      '<select id="pen-winner-' + m.id + '" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--page);font-size:13px;color:var(--t1);">' +
+        '<option value="">— Select pen winner —</option>' +
+        '<option value="home">' + esc(dispHome) + '</option>' +
+        '<option value="away">' + esc(dispAway) + '</option>' +
+      '</select>';
+    card.appendChild(penWrap);
+    const _sp = () => {
+      const hv = parseInt(card.querySelector('#h-' + m.id)?.value);
+      const av = parseInt(card.querySelector('#a-' + m.id)?.value);
+      penWrap.style.display = (!isNaN(hv) && !isNaN(av) && hv === av) ? 'block' : 'none';
+    };
+    card.querySelector('#h-' + m.id)?.addEventListener('input', _sp);
+    card.querySelector('#a-' + m.id)?.addEventListener('input', _sp);
+    // Restore saved pen winner and show picker if draw was predicted
+    const _sp2 = currentUser && predictions[currentUser]?.[m.id];
+    if(_sp2 && _sp2.pen_winner) {
+      const _ps = penWrap.querySelector('select');
+      if(_ps) _ps.value = _sp2.pen_winner;
+    }
+    if(_sp2 && _sp2.home !== undefined && _sp2.home === _sp2.away) {
+      penWrap.style.display = 'block';
+    }
+  }
+
   // Add preview panel for all rounds (group + knockout)
   if(!skipPreview) {
     const preview = buildPreviewPanel(m.id);
@@ -2745,7 +2777,13 @@ async function submitPredictions(){
     if(results[m.id]||isMatchLocked(m.id)) return;
     const h=document.getElementById(`h-${m.id}`),a=document.getElementById(`a-${m.id}`);
     if(h&&a&&h.value!==''&&a.value!==''){
-      matchPreds[m.id]={home:parseInt(h.value),away:parseInt(a.value)};
+      const hp=parseInt(h.value),ap=parseInt(a.value);
+      const pred={home:hp,away:ap};
+      if(!m.group&&hp===ap){
+        const ps=document.getElementById('pen-winner-'+m.id);
+        if(ps&&ps.value) pred.pen_winner=ps.value;
+      }
+      matchPreds[m.id]=pred;
       predictions[name][m.id]=matchPreds[m.id];
     }
   });
@@ -2775,6 +2813,7 @@ async function submitPredictions(){
       awayTeam:  m ? m.away : '',
       homeScore: pred.home,
       awayScore: pred.away,
+      penWinner: pred.pen_winner || null,
     }));
   });
   // Show saving state
@@ -3230,7 +3269,8 @@ function renderPublicPage(){
             <span style="font-family:'DM Mono',monospace;font-weight:700;font-size:14px;color:var(--amber-dk);">9 pts</span>
           </div>
         </div>
-        <div style="margin-top:10px;font-size:12px;color:var(--t3);">Predictions lock 1 hour before each kickoff. Times shown in your local timezone.</div>
+        <div style="margin-top:12px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--t2);line-height:1.7;"><strong style="color:var(--t1);">Knockout rounds:</strong> Your predicted scoreline counts at <em>90 mins and extra time</em>. If it goes to penalties, picking the shootout winner earns the +3 result points.</div>
+          <div style="margin-top:10px;font-size:12px;color:var(--t3);">Predictions lock 1 hour before each kickoff. Times shown in your local timezone.</div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:14px;">
