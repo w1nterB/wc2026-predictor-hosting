@@ -1790,15 +1790,10 @@ const COUNTRIES = {
   ph: { label: 'PH Team', cls: 'fn-ph', color: '#0038A8' },
 };
 
-let participants=['Bibhushan Gautam','Dexter Frostbourne','Bib Dex','Dex Manager'];
+let participants = [];
 
-// Function assignments — keyed by name
-let participantFunctions = {
-  'Bibhushan Gautam':'di',
-  'Dexter Frostbourne':'ops',
-  'Bib Dex':'sm',
-  'Dex Manager':'mgmt'
-};
+// Function assignments — keyed by name, loaded from Supabase
+let participantFunctions = {};
 let participantCountries = {}; // keyed by name → country code
 
 // ── STATE — Supabase is source of truth, loaded on init ──
